@@ -46,7 +46,7 @@ class modMokoDoliTraining extends DolibarrModules
 		);
 		$this->editor_name = 'Moko Consulting';
 		$this->editor_url = 'https://mokoconsulting.tech';
-		$this->editor_squarred_logo = 'favicon_256.png@' & $this->rights_class;
+		$this->editor_squarred_logo = 'favicon_256.png@' . $this->rights_class;
 		$this->version              = 'development';
 		$this->const_name           = 'MAIN_MODULE_' . strtoupper($this->name);
 		$this->picto                = 'technic';
