@@ -352,11 +352,11 @@ class MokoDoliTrainingBackup
 	// ── SQL execution ─────────────────────────────────────────────────────────
 	//
 	// Reads a .php backup file and executes every SQL statement it contains.
-	// The PHP_GUARD line (<?php die(...); ?>) is skipped automatically --
-	// it is not valid SQL and does not end with a semicolon, so the accumulator
-	// never fires on it. SQL comments (--) are also skipped.
-	// /*!NNN...*/ conditional comments from Utils::dumpDatabase are sent to
-	// db->query() as-is; MySQL executes them when server version >= NNN.
+	// The PHP_GUARD line is skipped automatically -- it is not valid SQL and
+	// does not end with a semicolon, so the accumulator never fires on it.
+	// SQL comments (--) are also skipped.
+	// Conditional comments from Utils::dumpDatabase are sent to db->query()
+	// as-is; MySQL executes them when server version >= NNN.
 
 	public function execSqlFile(string $path): array
 	{
