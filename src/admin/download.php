@@ -19,8 +19,8 @@ if (!$res && file_exists('../../../main.inc.php'))    $res = @include '../../../
 if (!$res && file_exists('../../../../main.inc.php')) $res = @include '../../../../main.inc.php';
 if (!$res) die('Include of main fails');
 
-dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingBackup.class.php');
-dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingAudit.class.php');
+dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
+dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 
 if (!$user->admin) {
 	accessforbidden();

@@ -20,7 +20,7 @@ if (!$res && file_exists('../../../../main.inc.php')) $res = @include '../../../
 if (!$res) die('Include of main fails');
 
 require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
-dol_include_once('/mokodolitraining/src/lib/mokodolitraining.lib.php');
+dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 
 if (!$user->admin) accessforbidden();
 
@@ -105,7 +105,7 @@ if ($action === 'restore_file' && $filename) {
 
 // ── Action: download (redirect to handler) ────────────────────────────────────
 if ($action === 'download' && $filename) {
-	$dl_url = dol_buildpath('/mokodolitraining/src/admin/download.php', 1)
+	$dl_url = dol_buildpath('/mokodolitraining/admin/download.php', 1)
 		. '?filename=' . urlencode($filename) . '&token=' . urlencode(newToken());
 	header('Location: ' . $dl_url);
 	exit;

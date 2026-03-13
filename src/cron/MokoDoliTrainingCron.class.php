@@ -34,8 +34,8 @@ class MokoDoliTrainingCron
 	{
 		global $conf;
 
-		dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingBackup.class.php');
-		dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingAudit.class.php');
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 
 		$max_backups = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
 		$log_days    = max(7,  (int) (getDolGlobalString('MOKODOLITRAINING_LOG_RETENTION') ?: 90));

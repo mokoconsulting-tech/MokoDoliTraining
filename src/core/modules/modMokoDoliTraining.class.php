@@ -35,9 +35,9 @@ class modMokoDoliTraining extends DolibarrModules
 		$this->rights_class         = 'mokodolitraining';
 		$this->family               = 'mokoconsulting';
 		$this->familyinfo           = [
-			'mokoconsulting' => ['position' => '01', 'label' => $langs->trans('MokoConsulting')],
+			'mokoconsulting' => ['position' => '00', 'label' => $langs->trans('Moko Consulting')],
 		];
-		$this->module_position      = 2;
+		$this->module_position      = 02;
 		$this->name                 = preg_replace('/^mod/i', '', get_class($this));
 		$this->description          = $langs->trans('MokoDoliTrainingDescription');
 		$this->editor_name          = 'Moko Consulting';
@@ -92,7 +92,7 @@ class modMokoDoliTraining extends DolibarrModules
 			[
 				'label'        => 'MokoDoliTraining - Backup rotation and log purge',
 				'jobtype'      => 'method',
-				'class'        => '/mokodolitraining/src/cron/MokoDoliTrainingCron.class.php',
+				'class'        => '/mokodolitraining/cron/MokoDoliTrainingCron.class.php',
 				'objectname'   => 'MokoDoliTrainingCron',
 				'method'       => 'rotateAndPurge',
 				'parameters'   => '',
@@ -137,7 +137,7 @@ class modMokoDoliTraining extends DolibarrModules
 
 	public function init($options = ''): int
 	{
-		$result = $this->_load_tables('/mokodolitraining/src/sql/');
+		$result = $this->_load_tables('/mokodolitraining/sql/');
 		if ($result < 0) return 0;
 
 		// Ensure backup directory exists and is protected

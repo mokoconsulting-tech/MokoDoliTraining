@@ -21,9 +21,9 @@
 function mokodolitraining_admin_tabs(string $active): string
 {
 	$tabs = [
-		'setup'   => ['label' => 'Setup',     'url' => dol_buildpath('/mokodolitraining/src/admin/setup.php', 1)],
-		'backups' => ['label' => 'Backups',   'url' => dol_buildpath('/mokodolitraining/src/admin/backups.php', 1)],
-		'logs'    => ['label' => 'Audit Log', 'url' => dol_buildpath('/mokodolitraining/src/admin/logs.php', 1)],
+		'setup'   => ['label' => 'Setup',     'url' => dol_buildpath('/mokodolitraining/admin/setup.php', 1)],
+		'backups' => ['label' => 'Backups',   'url' => dol_buildpath('/mokodolitraining/admin/backups.php', 1)],
+		'logs'    => ['label' => 'Audit Log', 'url' => dol_buildpath('/mokodolitraining/admin/logs.php', 1)],
 	];
 	$out = '<div class="tabs"><ul>';
 	foreach ($tabs as $key => $t) {
@@ -69,9 +69,9 @@ function mokodolitraining_badge_status(string $status): string
  */
 function mokodolitraining_load_classes($db): array
 {
-	dol_include_once('/mokodolitraining/src/core/modules/modMokoDoliTraining.class.php');
-	dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingBackup.class.php');
-	dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingAudit.class.php');
+	dol_include_once('/mokodolitraining/core/modules/modMokoDoliTraining.class.php');
+	dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
+	dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 
 	$max = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
 	return [

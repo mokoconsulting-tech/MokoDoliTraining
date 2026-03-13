@@ -53,7 +53,7 @@ class interface_99_modMokoDoliTraining_MokoDoliTrainingTrigger extends CommonTri
 
 		if (!in_array($action, $watched, true)) return 0;
 
-		dol_include_once('/mokodolitraining/src/class/MokoDoliTrainingAudit.class.php');
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 		$audit = new MokoDoliTrainingAudit($this->db);
 
 		$target_id = $object->id ?? ($object->rowid ?? 0);
