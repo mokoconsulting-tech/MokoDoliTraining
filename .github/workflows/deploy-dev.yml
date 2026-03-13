@@ -37,12 +37,14 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Sensitive — stored as GitHub Secrets
       DEV_FTP_KEY:      ${{ secrets.DEV_FTP_KEY }}
       DEV_FTP_PASSWORD: ${{ secrets.DEV_FTP_PASSWORD }}
-      DEV_FTP_USERNAME: ${{ secrets.DEV_FTP_USERNAME }}
-      DEV_FTP_HOST:     ${{ secrets.DEV_FTP_HOST }}
-      DEV_FTP_PATH:     ${{ secrets.DEV_FTP_PATH }}
-      DEV_FTP_PATH_SUFFIX: ${{ secrets.DEV_FTP_PATH_SUFFIX }}
+      # Non-sensitive — stored as GitHub Variables (vars.*)
+      DEV_FTP_HOST:        ${{ vars.DEV_FTP_HOST }}
+      DEV_FTP_USERNAME:    ${{ vars.DEV_FTP_USERNAME }}
+      DEV_FTP_PATH:        ${{ vars.DEV_FTP_PATH }}
+      DEV_FTP_PATH_SUFFIX: ${{ vars.DEV_FTP_PATH_SUFFIX }}
 
     steps:
       - name: Checkout repository
@@ -64,7 +66,10 @@ jobs:
           fi
 
           # ── Remote path ────────────────────────────────────────────────────
-          REMOTE_PATH="${DEV_FTP_PATH}${DEV_FTP_PATH_SUFFIX}"
+          # Trim trailing slash from PATH, leading slash from SUFFIX, rejoin cleanly
+          BASE="${DEV_FTP_PATH%/}"
+          SUFFIX="${DEV_FTP_PATH_SUFFIX#/}"
+          REMOTE_PATH="${BASE}/${SUFFIX}"
 
           # ── Dry-run flag ───────────────────────────────────────────────────
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
