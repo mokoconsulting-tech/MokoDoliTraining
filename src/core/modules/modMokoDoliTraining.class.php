@@ -54,11 +54,11 @@ class modMokoDoliTraining extends DolibarrModules
 		$this->family          = 'mokoconsulting';
 		$this->familyinfo      = [
 			'mokoconsulting' => [
-				'position' => '01',
+				'position' => '00',
 				'label'    => $langs->trans('Moko Consulting'),
 			],
 		];
-		$this->module_position = 500;
+		$this->module_position = 1;
 		$this->name            = preg_replace('/^mod/i', '', get_class($this));
 		$this->description     = 'Demo and training dataset manager for Dolibarr v23+. Tracks all inserted rowids and provides one-click reset.';
 		$this->editor_name           = 'Moko Consulting';
