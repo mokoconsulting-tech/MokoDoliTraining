@@ -8,29 +8,41 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/lib/mokodolitraining.lib.php
- * VERSION:  01.00.00
+ * VERSION:  01.01.00
  * BRIEF:    Shared helpers: tab builder, formatters, class loader, constants accessor.
  */
 
 /**
- * Render the admin tab bar and return it as an HTML string.
+ * Build and return the Dolibarr tab head array for MokoDoliTraining admin pages.
+ * Pass the result directly to dol_get_fiche_head().
  *
- * @param string $active  Key of the currently active tab
- * @return string         HTML tab bar
+ * @return array  Array of tab definitions for dol_get_fiche_head()
  */
-function mokodolitraining_admin_tabs(string $active): string
+function mokodolitraining_admin_tabs(): array
 {
-	$tabs = [
-		'setup'   => ['label' => 'Setup',     'url' => dol_buildpath('/mokodolitraining/admin/setup.php', 1)],
-		'backups' => ['label' => 'Backups',   'url' => dol_buildpath('/mokodolitraining/admin/backups.php', 1)],
-		'logs'    => ['label' => 'Audit Log', 'url' => dol_buildpath('/mokodolitraining/admin/logs.php', 1)],
+	global $langs;
+	return [
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/setup.php', 1),
+			1 => $langs->trans('TabSetup'),
+			2 => 'setup',
+		],
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/data.php', 1),
+			1 => $langs->trans('TabTrainingData'),
+			2 => 'data',
+		],
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/backups.php', 1),
+			1 => $langs->trans('TabBackups'),
+			2 => 'backups',
+		],
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/logs.php', 1),
+			1 => $langs->trans('TabLogs'),
+			2 => 'logs',
+		],
 	];
-	$out = '<div class="tabs"><ul>';
-	foreach ($tabs as $key => $t) {
-		$cls = ($key === $active) ? ' class="tabactive"' : '';
-		$out .= '<li' . $cls . '><a href="' . $t['url'] . '">' . dol_escape_htmltag($t['label']) . '</a></li>';
-	}
-	return $out . '</ul></div>';
 }
 
 /**
@@ -62,14 +74,12 @@ function mokodolitraining_badge_status(string $status): string
 
 /**
  * Instantiate and return Backup and Audit classes.
- * Reads MOKODOLITRAINING_MAX_BACKUPS from Dolibarr constants.
  *
  * @param object $db  Dolibarr DB object
  * @return array{backup: MokoDoliTrainingBackup, audit: MokoDoliTrainingAudit}
  */
 function mokodolitraining_load_classes($db): array
 {
-	dol_include_once('/mokodolitraining/core/modules/modMokoDoliTraining.class.php');
 	dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
 	dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 
@@ -91,4 +101,48 @@ function mokodolitraining_const(string $name, $default = '')
 {
 	$val = getDolGlobalString($name);
 	return ($val !== '' && $val !== null) ? $val : $default;
+}
+
+/**
+ * Load and return the training dataset manifest tables array.
+ *
+ * @return array
+ */
+function mokodolitraining_get_manifest(): array
+{
+	$path = dirname(__DIR__) . '/sql/manifest.json';
+	if (!file_exists($path)) return [];
+	$raw = json_decode(file_get_contents($path), true);
+	return is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
+}
+
+/**
+ * Return table and row count summary from the manifest.
+ *
+ * @return array{tables: int, rows: int}
+ */
+function mokodolitraining_get_manifest_summary(): array
+{
+	$m = mokodolitraining_get_manifest();
+	return ['tables' => count($m), 'rows' => array_sum(array_map('count', $m))];
+}
+
+/**
+ * Return absolute path to the seed SQL file.
+ *
+ * @return string
+ */
+function mokodolitraining_get_seed_sql_path(): string
+{
+	return dirname(__DIR__) . '/sql/mokotraining.sql';
+}
+
+/**
+ * Return absolute path to the reset SQL file.
+ *
+ * @return string
+ */
+function mokodolitraining_get_reset_sql_path(): string
+{
+	return dirname(__DIR__) . '/sql/mokotraining_reset.sql';
 }

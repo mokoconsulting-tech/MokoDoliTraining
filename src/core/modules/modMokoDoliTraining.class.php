@@ -33,7 +33,6 @@ class modMokoDoliTraining extends DolibarrModules
 
 		$this->numero               = 185068;
 		$this->rights_class         = 'mokodolitraining';
-
 		$this->module_position      = 02;
 		$this->name                 = preg_replace('/^mod/i', '', get_class($this));
 		$this->description          = $langs->trans('MokoDoliTrainingDescription');
@@ -68,12 +67,11 @@ class modMokoDoliTraining extends DolibarrModules
 
 		$this->config_page_url = ['setup.php@mokodolitraining'];
 		$this->hidden          = false;
-		$this->depends         = ['modMokoCRM'];
+		$this->depends         = [];
 		$this->requiredby      = [];
 		$this->conflictwith    = [];
 		$this->langfiles       = ['mokodolitraining@mokodolitraining'];
 		$this->rights          = [];
-		$this->menus           = [];
 		$this->tabs            = [];
 
 		// ── Constants ────────────────────────────────────────────────────────
@@ -94,55 +92,46 @@ class modMokoDoliTraining extends DolibarrModules
 		// ── Cron ─────────────────────────────────────────────────────────────
 		$this->cronjobs = [
 			[
-				'label'        => 'MokoDoliTraining - Backup rotation and log purge',
-				'jobtype'      => 'method',
-				'class'        => '/mokodolitraining/cron/MokoDoliTrainingCron.class.php',
-				'objectname'   => 'MokoDoliTrainingCron',
-				'method'       => 'rotateAndPurge',
-				'parameters'   => '',
-				'comment'      => 'Enforces backup retention limits and purges old audit log entries.',
-				'frequency'    => 1,
-				'unitfrequency'=> 86400,
-				'priority'     => 50,
-				'datestart'    => 0,
-				'dateend'      => 0,
-				'autodelete'   => 0,
+				'label'         => 'MokoDoliTraining - Reset to training snapshot',
+				'jobtype'       => 'method',
+				'class'         => '/mokodolitraining/cron/MokoDoliTrainingCron.class.php',
+				'objectname'    => 'MokoDoliTrainingCron',
+				'method'        => 'resetToSnapshot',
+				'parameters'    => '',
+				'comment'       => 'Deletes all training rows and restores from the latest snapshot backup. Run on a schedule to keep the demo instance in a clean state.',
+				'frequency'     => 1,
+				'unitfrequency' => 86400,
+				'priority'      => 50,
+				'datestart'     => 0,
+				'dateend'       => 0,
+				'autodelete'    => 0,
+				'status'        => 0,
+			],
+			[
+				'label'         => 'MokoDoliTraining - Backup rotation and log purge',
+				'jobtype'       => 'method',
+				'class'         => '/mokodolitraining/cron/MokoDoliTrainingCron.class.php',
+				'objectname'    => 'MokoDoliTrainingCron',
+				'method'        => 'rotateAndPurge',
+				'parameters'    => '',
+				'comment'       => 'Enforces backup retention limits and purges old audit log entries.',
+				'frequency'     => 1,
+				'unitfrequency' => 86400,
+				'priority'      => 60,
+				'datestart'     => 0,
+				'dateend'       => 0,
+				'autodelete'    => 0,
+				'status'        => 0,
 			],
 		];
-	}
-
-	// ── Static helpers ────────────────────────────────────────────────────────
-
-	public static function getManifest(): array
-	{
-		$path = dirname(__DIR__, 2) . '/sql/manifest.json';
-		if (!file_exists($path)) return [];
-		$raw = json_decode(file_get_contents($path), true);
-		return is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
-	}
-
-	public static function getSeedSqlPath(): string
-	{
-		return dirname(__DIR__, 2) . '/sql/mokotraining.sql';
-	}
-
-	public static function getResetSqlPath(): string
-	{
-		return dirname(__DIR__, 2) . '/sql/mokotraining_reset.sql';
-	}
-
-	public static function getManifestSummary(): array
-	{
-		$m = self::getManifest();
-		return ['tables' => count($m), 'rows' => array_sum(array_map('count', $m))];
 	}
 
 	// ── Lifecycle ─────────────────────────────────────────────────────────────
 
 	public function init($options = ''): int
 	{
-		$result = $this->_load_tables('/mokodolitraining/sql/');
-		if ($result < 0) return 0;
+		// Create tables first
+		$this->_load_tables('/custom/mokodolitraining/sql/');
 
 		// Ensure backup directory exists and is protected
 		$backup_dir = dirname(__DIR__, 2) . '/backup';
@@ -154,11 +143,124 @@ class modMokoDoliTraining extends DolibarrModules
 			file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
 		}
 
+		// Re-activate all modules BEFORE _init() so any schema alterations
+		// triggered by other modules' init() run first. This ensures all
+		// tables are in their correct state before we take the rollback snapshot.
+		$this->_reactivateAllModules();
+
+		// Take a pre-seed rollback snapshot now that schema is fully built.
+		$this->_autoSnapshot();
+
+		// Run our own activation chain (registers constants, triggers, menus)
+		$result = $this->_init([], $options);
+		if ($result <= 0) return $result;
+
 		return 1;
+	}
+
+	/**
+	 * Take an automatic rollback snapshot on install so the database state
+	 * is captured before any training data is seeded.
+	 */
+	private function _autoSnapshot(): void
+	{
+		global $conf, $user;
+
+		require_once dirname(__DIR__, 2) . '/class/MokoDoliTrainingBackup.class.php';
+		require_once dirname(__DIR__, 2) . '/class/MokoDoliTrainingAudit.class.php';
+
+		$max    = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
+		$backup = new MokoDoliTrainingBackup($this->db, $max);
+		$audit  = new MokoDoliTrainingAudit($this->db);
+
+		if ($backup->isLocked() || !$backup->acquireLock()) return;
+
+		$rb = $backup->createFullBackup('rollback');
+		if (!empty($rb['path'])) {
+			dolibarr_set_const($this->db, 'MOKODOLITRAINING_ROLLBACK_FILE', $rb['path'], 'chaine', 0, '', (int) $conf->entity);
+		}
+		$audit->log((int) ($user->id ?? 0), 'auto_snapshot', empty($rb['errors']) ? 'ok' : 'partial',
+			$rb['rows'] ?? 0, 0, 0, $rb['path'] ?? '', $rb['checksum'] ?? '', $rb['errors'] ?? [],
+			entity: (int) $conf->entity);
+
+		$backup->releaseLock();
 	}
 
 	public function remove($options = ''): int
 	{
-		return 1;
+		global $conf, $user;
+
+		require_once DOL_DOCUMENT_ROOT . '/custom/mokodolitraining/class/MokoDoliTrainingBackup.class.php';
+		require_once DOL_DOCUMENT_ROOT . '/custom/mokodolitraining/class/MokoDoliTrainingAudit.class.php';
+
+		$max    = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
+		$backup = new MokoDoliTrainingBackup($this->db, $max);
+		$audit  = new MokoDoliTrainingAudit($this->db);
+		$uid    = isset($user) ? (int) $user->id : 0;
+		$entity = isset($conf) ? (int) $conf->entity : 1;
+
+		// 1. Restore rollback backup to return DB to pre-training state
+		$rb_path = $backup->getLatest('rollback') ?: getDolGlobalString('MOKODOLITRAINING_ROLLBACK_FILE');
+		if ($rb_path && file_exists($rb_path) && $backup->acquireLock()) {
+			$backup->runReset();
+			$res = $backup->restoreFromFile($rb_path);
+			$audit->log($uid, 'uninstall_rollback', empty($res['errors']) ? 'ok' : 'partial',
+				$res['ok'], 0, 0, $rb_path, errors: $res['errors'], entity: $entity);
+			$backup->releaseLock();
+		}
+
+		// 2. Drop module log table
+		$this->db->query('DROP TABLE IF EXISTS ' . MAIN_DB_PREFIX . 'mokodolitraining_log');
+
+		// 3. Standard Dolibarr uninstall (removes constants, menus, rights)
+		return $this->_remove([], $options);
+	}
+
+	/**
+	 * Re-run init() on every currently active module to restore their menu
+	 * entries after Dolibarr wipes the menu table during any module activation.
+	 */
+	private function _reactivateAllModules(): void
+	{
+		global $conf;
+
+		$res = $this->db->query(
+			"SELECT name FROM llx_const
+			 WHERE name LIKE 'MAIN_MODULE_%'
+			 AND value = '1'
+			 AND entity IN (0, " . (int) $conf->entity . ")"
+		);
+		if (!$res) return;
+
+		$htdocs = DOL_DOCUMENT_ROOT;
+
+		while ($obj = $this->db->fetch_object($res)) {
+			// Derive module name from constant: MAIN_MODULE_FOO -> modFoo
+			$mod_upper = preg_replace('/^MAIN_MODULE_/', '', $obj->name);
+			$mod_name  = 'mod' . ucfirst(strtolower($mod_upper));
+
+			// Skip ourselves to avoid recursion
+			if (strtolower($mod_name) === 'modmokodolitraining') continue;
+
+			// Search core then custom for the descriptor file
+			$candidates = [
+				$htdocs . '/core/modules/' . $mod_name . '.class.php',
+				$htdocs . '/custom/' . strtolower($mod_upper) . '/core/modules/' . $mod_name . '.class.php',
+			];
+
+			$found = '';
+			foreach ($candidates as $c) {
+				if (file_exists($c)) { $found = $c; break; }
+			}
+			if (!$found) continue;
+
+			require_once $found;
+			if (!class_exists($mod_name)) continue;
+
+			$mod = new $mod_name($this->db);
+			if (method_exists($mod, '_init')) {
+				$mod->_init([], '');
+			}
+		}
 	}
 }

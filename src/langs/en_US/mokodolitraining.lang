@@ -17,6 +17,7 @@ MokoConsulting = Moko Consulting
 TabSetup = Setup
 TabBackups = Backups
 TabAuditLog = Audit Log
+TabLogs = Audit Log
 
 ; Page titles
 PageTitleSetup = MokoDoliTraining - Setup
@@ -132,3 +133,39 @@ ResultRestoreOk = Restore complete - %d statements executed.
 ResultSettingsSaved = Settings saved.
 ResultIntegrityOk = Integrity verified for %s.
 ResultIntegrityFail = Integrity check failed for %s: %s
+
+; Additional UI labels
+LabelStatus = Status
+LabelDays = days
+LabelCount = Count
+LogCount = Count
+LogHasErrors = Errors
+BackToModuleList = Back to module list
+Show = Show
+
+; Training Data tab
+TabTrainingData = Training Data
+PageTitleData = MokoDoliTraining - Training Data
+DataSqlFile = File
+DataSqlPurpose = Purpose
+DataSqlSize = Size
+DataSqlModified = Last Modified
+DataSqlSeedPurpose = Seeds all training records into the database
+DataSqlResetPurpose = Removes all training records from the database
+DataFileMissing = Missing
+DataManifestSummary = Manifest tracks
+DataRowBar = Distribution
+ManifestEmpty = Manifest not found. Ensure sql/manifest.json exists.
+
+; Dashboard labels
+DashDatasetStatus = Dataset Status
+DashTrackedRows = Tracked Records
+DashBackupCount = Backup Files
+DashMax = max
+DashBackupHealth = Backup Integrity
+DashHealthOk = OK
+DashHealthFail = FAIL
+DashRollback = Rollback
+DashSnapshot = Snapshot
+DashRecentActivity = Recent Activity
+DashViewAllLogs = View full audit log

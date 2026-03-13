@@ -8,8 +8,8 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/setup.php
- * VERSION:  01.00.00
- * BRIEF:    Admin setup page: install, reset, rollback, settings, manifest viewer.
+ * VERSION:  01.03.00
+ * BRIEF:    Dashboard: status, backup health, recent activity, settings, dataset actions.
  */
 
 $res = 0;
@@ -26,126 +26,116 @@ if (!$user->admin) accessforbidden();
 
 $langs->load('mokodolitraining@mokodolitraining');
 $action = GETPOST('action', 'aZ09');
+
 ['backup' => $backup, 'audit' => $audit] = mokodolitraining_load_classes($db);
 
-$msgs   = [];
-$errors = [];
-
-// ── CSRF check for all POST actions ──────────────────────────────────────────
-$post_actions = ['install', 'reset_snapshot', 'rollback', 'save_settings'];
-if (in_array($action, $post_actions, true) && !verifCsrfToken()) {
-	accessforbidden('Invalid token');
-}
 
 // ── Action: save settings ─────────────────────────────────────────────────────
 if ($action === 'save_settings') {
 	$max = max(2, (int) GETPOST('max_backups', 'int'));
 	$ret = max(7, (int) GETPOST('log_retention', 'int'));
-
 	dolibarr_set_const($db, 'MOKODOLITRAINING_MAX_BACKUPS',   (string) $max, 'chaine', 0, '', $conf->entity);
 	dolibarr_set_const($db, 'MOKODOLITRAINING_LOG_RETENTION', (string) $ret, 'chaine', 0, '', $conf->entity);
-
-	$audit->log((int) $user->id, 'integrity_check', 'ok', note: "Settings saved: max_backups={$max} log_retention={$ret}", entity: (int) $conf->entity);
-	$msgs[] = $langs->trans('ResultSettingsSaved');
+	$audit->log((int) $user->id, 'settings_save', 'ok', note: "max_backups={$max} log_retention={$ret}", entity: (int) $conf->entity);
+	setEventMessages($langs->trans('ResultSettingsSaved'), null, 'mesgs');
+	header('Location: ' . $_SERVER['PHP_SELF']);
+	exit;
 }
 
 // ── Action: install ───────────────────────────────────────────────────────────
 if ($action === 'install') {
 	if ($backup->isLocked()) {
-		$errors[] = $langs->trans('BackupLockWait');
+		setEventMessages($langs->trans('BackupLockWait'), null, 'warnings');
 	} elseif ($backup->acquireLock()) {
 		$t0 = hrtime(true);
+		$errs = [];
 
-		// 1. Rollback backup — pre-seed state
-		$rb = $backup->createBackup('rollback');
-		$errors = array_merge($errors, $rb['errors']);
+		$rb = $backup->createFullBackup('rollback');
+		$errs = array_merge($errs, $rb['errors']);
 		if ($rb['path']) {
 			dolibarr_set_const($db, 'MOKODOLITRAINING_ROLLBACK_FILE', $rb['path'], 'chaine', 0, '', $conf->entity);
-			$msgs[] = sprintf($langs->trans('ResultRollbackCreated'), basename($rb['path']), $rb['rows']);
+			setEventMessages(sprintf($langs->trans('ResultRollbackCreated'), basename($rb['path']), $rb['rows']), null, 'mesgs');
 			$audit->log((int) $user->id, 'backup_create', empty($rb['errors']) ? 'ok' : 'partial',
 				$rb['rows'], 0, 0, $rb['path'], $rb['checksum'], $rb['errors'], entity: (int) $conf->entity);
 		}
 
-		// 2. Seed
 		$seed = $backup->runSeed();
-		$errors = array_merge($errors, $seed['errors']);
-		$msgs[] = sprintf($langs->trans('ResultSeedOk'), $seed['ok']);
+		$errs = array_merge($errs, $seed['errors']);
+		setEventMessages(sprintf($langs->trans('ResultSeedOk'), $seed['ok']), null, 'mesgs');
 		$audit->log((int) $user->id, 'seed', empty($seed['errors']) ? 'ok' : 'partial',
 			0, $seed['ok'], 0, errors: $seed['errors'], entity: (int) $conf->entity);
 
-		// 3. Snapshot — post-seed state
 		$snap = $backup->createBackup('snapshot');
-		$errors = array_merge($errors, $snap['errors']);
+		$errs = array_merge($errs, $snap['errors']);
 		if ($snap['path']) {
 			dolibarr_set_const($db, 'MOKODOLITRAINING_SNAPSHOT_FILE', $snap['path'], 'chaine', 0, '', $conf->entity);
-			$msgs[] = sprintf($langs->trans('ResultSnapshotCreated'), basename($snap['path']), $snap['rows']);
+			setEventMessages(sprintf($langs->trans('ResultSnapshotCreated'), basename($snap['path']), $snap['rows']), null, 'mesgs');
 			$audit->log((int) $user->id, 'backup_create', empty($snap['errors']) ? 'ok' : 'partial',
 				$snap['rows'], 0, 0, $snap['path'], $snap['checksum'], $snap['errors'], entity: (int) $conf->entity);
 		}
 
+		if ($errs) setEventMessages(null, $errs, 'errors');
 		$ms = (int) ((hrtime(true) - $t0) / 1e6);
 		dolibarr_set_const($db, 'MOKODOLITRAINING_SEEDED',    '1',         'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, 'MOKODOLITRAINING_SEED_DATE', gmdate('c'), 'chaine', 0, '', $conf->entity);
-
-		$status = empty($errors) ? 'ok' : 'partial';
-		$audit->log((int) $user->id, 'install', $status, 0, 0, $ms, errors: $errors, entity: (int) $conf->entity);
+		$audit->log((int) $user->id, 'install', empty($errs) ? 'ok' : 'partial', 0, 0, $ms, errors: $errs, entity: (int) $conf->entity);
 		$backup->releaseLock();
 	}
+	header('Location: ' . $_SERVER['PHP_SELF']);
+	exit;
 }
 
 // ── Action: reset to snapshot ─────────────────────────────────────────────────
 if ($action === 'reset_snapshot') {
 	$snap_path = $backup->getLatest('snapshot') ?: getDolGlobalString('MOKODOLITRAINING_SNAPSHOT_FILE');
-
 	if (!$snap_path || !file_exists($snap_path)) {
-		$errors[] = 'No snapshot backup found. Run Install first.';
+		setEventMessages('No snapshot backup found. Run Install first.', null, 'errors');
 	} elseif ($backup->isLocked()) {
-		$errors[] = $langs->trans('BackupLockWait');
+		setEventMessages($langs->trans('BackupLockWait'), null, 'warnings');
 	} elseif ($backup->acquireLock()) {
 		$t0 = hrtime(true);
-
-		$del = $backup->runReset();
-		$errors = array_merge($errors, $del['errors']);
-		$msgs[] = sprintf($langs->trans('ResultResetOk'), $del['ok']);
-
-		$res = $backup->restoreFromFile($snap_path);
-		$errors = array_merge($errors, $res['errors']);
-		$msgs[] = sprintf($langs->trans('ResultRestoreOk'), $res['ok']);
-
-		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
-		$status = empty($errors) ? 'ok' : 'partial';
+		$errs = [];
+		$del  = $backup->runReset();
+		$errs = array_merge($errs, $del['errors']);
+		setEventMessages(sprintf($langs->trans('ResultResetOk'), $del['ok']), null, 'mesgs');
+		$res2 = $backup->restoreFromFile($snap_path);
+		$errs = array_merge($errs, $res2['errors']);
+		setEventMessages(sprintf($langs->trans('ResultRestoreOk'), $res2['ok']), null, 'mesgs');
+		if ($errs) setEventMessages(null, $errs, 'errors');
 		dolibarr_set_const($db, 'MOKODOLITRAINING_RESET_DATE', gmdate('c'), 'chaine', 0, '', $conf->entity);
-		$audit->log((int) $user->id, 'reset_snapshot', $status, $res['ok'], 0, $ms, $snap_path, errors: $errors, entity: (int) $conf->entity);
+		$audit->log((int) $user->id, 'reset_snapshot', empty($errs) ? 'ok' : 'partial',
+			$res2['ok'], 0, (int) ((hrtime(true) - $t0) / 1e6), $snap_path, errors: $errs, entity: (int) $conf->entity);
 		$backup->releaseLock();
 	}
+	header('Location: ' . $_SERVER['PHP_SELF']);
+	exit;
 }
 
 // ── Action: rollback ──────────────────────────────────────────────────────────
 if ($action === 'rollback') {
 	$rb_path = $backup->getLatest('rollback') ?: getDolGlobalString('MOKODOLITRAINING_ROLLBACK_FILE');
-
 	if (!$rb_path || !file_exists($rb_path)) {
-		$errors[] = 'No rollback backup found. Run Install first.';
+		setEventMessages('No rollback backup found. Run Install first.', null, 'errors');
 	} elseif ($backup->isLocked()) {
-		$errors[] = $langs->trans('BackupLockWait');
+		setEventMessages($langs->trans('BackupLockWait'), null, 'warnings');
 	} elseif ($backup->acquireLock()) {
 		$t0 = hrtime(true);
-
-		$del = $backup->runReset();
-		$errors = array_merge($errors, $del['errors']);
-		$msgs[] = sprintf($langs->trans('ResultResetOk'), $del['ok']);
-
-		$res = $backup->restoreFromFile($rb_path);
-		$errors = array_merge($errors, $res['errors']);
-		$msgs[] = sprintf($langs->trans('ResultRestoreOk'), $res['ok']);
-
-		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
-		$status = empty($errors) ? 'ok' : 'partial';
+		$errs = [];
+		$del  = $backup->runReset();
+		$errs = array_merge($errs, $del['errors']);
+		setEventMessages(sprintf($langs->trans('ResultResetOk'), $del['ok']), null, 'mesgs');
+		$res2 = $backup->restoreFromFile($rb_path);
+		$errs = array_merge($errs, $res2['errors']);
+		setEventMessages(sprintf($langs->trans('ResultRestoreOk'), $res2['ok']), null, 'mesgs');
+		if ($errs) setEventMessages(null, $errs, 'errors');
 		dolibarr_set_const($db, 'MOKODOLITRAINING_SEEDED',     '0',         'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, 'MOKODOLITRAINING_RESET_DATE', gmdate('c'), 'chaine', 0, '', $conf->entity);
-		$audit->log((int) $user->id, 'rollback', $status, $res['ok'], 0, $ms, $rb_path, errors: $errors, entity: (int) $conf->entity);
+		$audit->log((int) $user->id, 'rollback', empty($errs) ? 'ok' : 'partial',
+			$res2['ok'], 0, (int) ((hrtime(true) - $t0) / 1e6), $rb_path, errors: $errs, entity: (int) $conf->entity);
 		$backup->releaseLock();
 	}
+	header('Location: ' . $_SERVER['PHP_SELF']);
+	exit;
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -156,9 +146,20 @@ $rb_file     = $backup->getLatest('rollback');
 $snap_file   = $backup->getLatest('snapshot');
 $max_backups = (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10);
 $log_ret     = (int) (getDolGlobalString('MOKODOLITRAINING_LOG_RETENTION') ?: 90);
-$summary     = modMokoDoliTraining::getManifestSummary();
-$manifest    = modMokoDoliTraining::getManifest();
 $is_locked   = $backup->isLocked();
+$summary     = mokodolitraining_get_manifest_summary();
+$all_backups = $backup->listBackups();
+$recent_logs = $audit->getRecent(5, (int) $conf->entity);
+
+// Backup health: verify both key backups
+$rb_health   = null; // null=none, true=ok, false=fail
+$snap_health = null;
+foreach ([['rollback', &$rb_health, $rb_file], ['snapshot', &$snap_health, $snap_file]] as [, &$h, $f]) {
+	if ($f && file_exists($f)) {
+		$v = $backup->verifyIntegrity($f);
+		$h = $v['ok'];
+	}
+}
 
 // ── Output ────────────────────────────────────────────────────────────────────
 llxHeader('', $langs->trans('PageTitleSetup'));
@@ -167,130 +168,206 @@ $linkback = '<a href="' . DOL_URL_ROOT . '/admin/modules.php?restore_lastsearch_
 	. $langs->trans('BackToModuleList') . '</a>';
 print load_fiche_titre('MokoDoliTraining', $linkback, 'technic');
 
-// Tabs
-print mokodolitraining_admin_tabs('setup');
+if ($is_locked) print info_admin($langs->trans('StatusLocked'), 0, 0, 1);
+dol_htmloutput_events();
 
-// Notices
-if ($is_locked) {
-	print '<div class="warning">' . $langs->trans('StatusLocked') . '</div>';
-}
-foreach ($msgs as $m) {
-	print '<div class="ok">' . dol_htmlentities($m) . '</div>';
-}
-foreach ($errors as $e) {
-	print '<div class="error">' . dol_htmlentities($e) . '</div>';
-}
+print dol_get_fiche_head(mokodolitraining_admin_tabs(), 'setup', '', -1, 'technic');
 
-// ── Status dashboard ──────────────────────────────────────────────────────────
-print '<br>';
-print '<div class="div-table-responsive">';
-print '<table class="noborder centpercent">';
-print '<tr class="liste_titre">';
-print '<th>' . $langs->trans('TabSetup') . '</th>';
-print '<th>' . $langs->trans('LabelLastSeeded') . '</th>';
-print '<th>' . $langs->trans('LabelLastReset') . '</th>';
-print '<th>' . $langs->trans('LabelRollbackBackup') . '</th>';
-print '<th>' . $langs->trans('LabelSnapshotBackup') . '</th>';
-print '<th>' . $langs->trans('LabelTracked') . '</th>';
-print '</tr><tr class="oddeven">';
+// ── Stat counter boxes ────────────────────────────────────────────────────────
+print '<div class="div-table-responsive-no-min" style="margin-bottom:20px">';
+print '<table class="nobordernopadding centpercent"><tr>';
 
-printf('<td>%s</td>',
-	$is_seeded
-		? '<span class="badge badge-status4">' . $langs->trans('StatusSeeded') . '</span>'
-		: '<span class="badge badge-status0">' . $langs->trans('StatusNotSeeded') . '</span>'
+// Dataset status
+$ds_color = $is_seeded ? '#28a745' : '#6c757d';
+$ds_lbl   = $is_seeded ? $langs->trans('StatusSeeded') : $langs->trans('StatusNotSeeded');
+$ds_icon  = $is_seeded ? 'check' : 'help';
+printf(
+	'<td style="width:25%%;padding:4px">'
+	. '<div class="box-flex-item box-flex-item-with-label" style="border-left:4px solid %s;padding:12px 16px">'
+	. '<div class="box-flex-item-label opacitymedium">%s</div>'
+	. '<div style="font-size:1.4em;font-weight:bold">%s %s</div>'
+	. '</div></td>',
+	$ds_color,
+	$langs->trans('DashDatasetStatus'),
+	img_picto('', $ds_icon),
+	$ds_lbl
 );
-print '<td>' . ($seed_date  ? dol_htmlentities($seed_date)  : '<em>' . $langs->trans('LabelNone') . '</em>') . '</td>';
-print '<td>' . ($reset_date ? dol_htmlentities($reset_date) : '<em>' . $langs->trans('LabelNone') . '</em>') . '</td>';
 
-foreach ([$rb_file, $snap_file] as $bk) {
-	print '<td>' . ($bk
-		? '<span class="badge badge-status1" title="' . dol_htmlentities($bk) . '">' . dol_htmlentities(basename($bk)) . '</span>'
-		: '<span class="badge badge-status8">' . $langs->trans('LabelNone') . '</span>'
-	) . '</td>';
-}
-
-printf('<td>%d %s / %d %s</td>',
-	$summary['tables'], $langs->trans('LabelTables'),
-	$summary['rows'],   $langs->trans('LabelRows')
+// Tracked rows
+printf(
+	'<td style="width:25%%;padding:4px">'
+	. '<div class="box-flex-item box-flex-item-with-label" style="border-left:4px solid #17a2b8;padding:12px 16px">'
+	. '<div class="box-flex-item-label opacitymedium">%s</div>'
+	. '<div style="font-size:1.4em;font-weight:bold">%d <span class="opacitymedium" style="font-size:0.6em">%s / %d %s</span></div>'
+	. '</div></td>',
+	$langs->trans('DashTrackedRows'),
+	$summary['rows'],
+	$langs->trans('LabelRows'),
+	$summary['tables'],
+	$langs->trans('LabelTables')
 );
+
+// Backup count
+$bk_count = count($all_backups);
+$bk_color = $bk_count > 0 ? '#007bff' : '#6c757d';
+printf(
+	'<td style="width:25%%;padding:4px">'
+	. '<div class="box-flex-item box-flex-item-with-label" style="border-left:4px solid %s;padding:12px 16px">'
+	. '<div class="box-flex-item-label opacitymedium">%s</div>'
+	. '<div style="font-size:1.4em;font-weight:bold">%d <span class="opacitymedium" style="font-size:0.6em">/ %d %s</span></div>'
+	. '</div></td>',
+	$bk_color,
+	$langs->trans('DashBackupCount'),
+	$bk_count,
+	$max_backups,
+	$langs->trans('DashMax')
+);
+
+// Backup health
+$h_rb   = is_null($rb_health)   ? ['--',      '#6c757d', 'help']    : ($rb_health   ? [$langs->trans('DashHealthOk'), '#28a745', 'check'] : [$langs->trans('DashHealthFail'), '#dc3545', 'error']);
+$h_snap = is_null($snap_health) ? ['--',      '#6c757d', 'help']    : ($snap_health ? [$langs->trans('DashHealthOk'), '#28a745', 'check'] : [$langs->trans('DashHealthFail'), '#dc3545', 'error']);
+printf(
+	'<td style="width:25%%;padding:4px">'
+	. '<div class="box-flex-item box-flex-item-with-label" style="border-left:4px solid %s;padding:12px 16px">'
+	. '<div class="box-flex-item-label opacitymedium">%s</div>'
+	. '<div style="font-size:1em;font-weight:bold">'
+	. '%s %s &nbsp;|&nbsp; %s %s'
+	. '</div></div></td>',
+	($rb_health === false || $snap_health === false) ? '#dc3545' : '#28a745',
+	$langs->trans('DashBackupHealth'),
+	img_picto('', $h_rb[2]),   $langs->trans('DashRollback') . ': ' . $h_rb[0],
+	img_picto('', $h_snap[2]), $langs->trans('DashSnapshot')  . ': ' . $h_snap[0]
+);
+
 print '</tr></table></div>';
 
-// ── Action buttons ─────────────────────────────────────────────────────────────
-print '<br>';
-print '<form method="POST" action="' . $_SERVER['PHP_SELF'] . '">';
-print '<input type="hidden" name="token" value="' . newToken() . '">';
-print '<div class="tabsAction">';
-
-printf(
-	'<button type="submit" name="action" value="install" class="butAction"%s onclick="return confirm(\'%s\');">%s</button>',
-	$is_locked ? ' disabled' : '',
-	dol_escape_js($langs->trans('ConfirmInstall')),
-	$langs->trans('ActionInstall')
+// ── Key dates + file info ─────────────────────────────────────────────────────
+print '<table class="noborder centpercent" style="margin-bottom:20px">';
+print '<tr class="liste_titre">';
+printf('<th>%s</th><th>%s</th><th>%s</th><th>%s</th>',
+	$langs->trans('LabelLastSeeded'),
+	$langs->trans('LabelLastReset'),
+	$langs->trans('LabelRollbackBackup'),
+	$langs->trans('LabelSnapshotBackup')
 );
+print '</tr><tr class="oddeven">';
 
-printf(
-	'&nbsp;<button type="submit" name="action" value="reset_snapshot" class="butAction"%s onclick="return confirm(\'%s\');">%s</button>',
-	($is_locked || !$snap_file) ? ' disabled' : '',
-	dol_escape_js($langs->trans('ConfirmResetSnapshot')),
-	$langs->trans('ActionResetSnapshot')
-);
+$none = '<span class="opacitymedium">' . $langs->trans('LabelNone') . '</span>';
 
-printf(
-	'&nbsp;<button type="submit" name="action" value="rollback" class="butActionDelete"%s onclick="return confirm(\'%s\');">%s</button>',
-	($is_locked || !$rb_file) ? ' disabled' : '',
-	dol_escape_js($langs->trans('ConfirmRollback')),
-	$langs->trans('ActionRollback')
-);
+printf('<td>%s</td>',
+	$seed_date  ? dol_print_date(dol_stringtotime($seed_date),  'dayhour') : $none);
+printf('<td>%s</td>',
+	$reset_date ? dol_print_date(dol_stringtotime($reset_date), 'dayhour') : $none);
 
-print '</div></form>';
+foreach ([$rb_file, $snap_file] as $f) {
+	if ($f) {
+		$sz   = file_exists($f) ? ' <span class="opacitymedium small">(' . mokodolitraining_format_bytes(filesize($f)) . ')</span>' : '';
+		printf('<td>' . img_picto('', 'download', 'class="pictofixedwidth"') . '<span title="%s">%s</span>%s</td>',
+			dol_htmlentities($f), dol_htmlentities(basename($f)), $sz);
+	} else {
+		print '<td>' . $none . '</td>';
+	}
+}
 
-// ── Settings ───────────────────────────────────────────────────────────────────
-print '<br><h3>' . $langs->trans('SettingsTitle') . '</h3>';
+print '</tr></table>';
+
+// ── Recent activity ───────────────────────────────────────────────────────────
+print '<div style="margin-bottom:20px">';
+print '<h4 class="liste_titre" style="margin-top:0;padding:6px 0;border-bottom:1px solid var(--colortextlink,#666)">'
+	. img_picto('', 'clock', 'class="pictofixedwidth"')
+	. $langs->trans('DashRecentActivity') . '</h4>';
+
+if (empty($recent_logs)) {
+	print '<span class="opacitymedium">' . $langs->trans('LogEmpty') . '</span>';
+} else {
+	print '<table class="noborder centpercent">';
+	printf('<tr class="liste_titre"><th>%s</th><th>%s</th><th>%s</th><th>%s</th><th class="right">%s</th><th>%s</th></tr>',
+		$langs->trans('LogDate'),
+		$langs->trans('LogUser'),
+		$langs->trans('LogAction'),
+		$langs->trans('LogStatus'),
+		$langs->trans('LogRows'),
+		$langs->trans('LogNote')
+	);
+	foreach ($recent_logs as $row) {
+		printf(
+			'<tr class="oddeven">'
+			. '<td class="nowrap small">%s</td>'
+			. '<td class="small">%s</td>'
+			. '<td><code class="small">%s</code></td>'
+			. '<td>%s</td>'
+			. '<td class="right small">%d</td>'
+			. '<td class="small opacitymedium">%s</td>'
+			. '</tr>',
+			$row['datec'] ? dol_print_date(dol_stringtotime($row['datec']), 'dayhour') : '-',
+			dol_htmlentities($row['login'] ?: 'cron'),
+			dol_htmlentities($row['action']),
+			mokodolitraining_badge_status($row['status']),
+			(int) $row['rows_affected'],
+			dol_htmlentities((string) ($row['note'] ?? ''))
+		);
+	}
+	print '</table>';
+	$logs_url = dol_buildpath('/mokodolitraining/admin/logs.php', 1);
+	print '<div style="text-align:right;margin-top:4px"><a href="' . $logs_url . '" class="small">'
+		. $langs->trans('DashViewAllLogs') . ' &rsaquo;</a></div>';
+}
+print '</div>';
+
+// ── Settings form ─────────────────────────────────────────────────────────────
 print '<form method="POST" action="' . $_SERVER['PHP_SELF'] . '">';
 print '<input type="hidden" name="token" value="' . newToken() . '">';
 print '<table class="noborder centpercent">';
-
 print '<tr class="liste_titre"><th colspan="3">' . $langs->trans('SettingsTitle') . '</th></tr>';
-
-// Max backups
-printf('<tr class="oddeven"><td class="fieldrequired">%s</td><td><input type="number" name="max_backups" value="%d" min="2" max="50" class="width50"> <span class="opacitymedium">%s</span></td></tr>',
-	$langs->trans('SettingMaxBackups'),
-	$max_backups,
-	$langs->trans('SettingMaxBackupsHelp')
+printf(
+	'<tr class="oddeven">'
+	. '<td class="titlefield fieldrequired">%s</td>'
+	. '<td><input type="number" name="max_backups" value="%d" min="2" max="50" class="width50 flat"></td>'
+	. '<td class="opacitymedium">%s</td></tr>',
+	$langs->trans('SettingMaxBackups'), $max_backups, $langs->trans('SettingMaxBackupsHelp')
 );
-
-// Log retention
-printf('<tr class="oddeven"><td class="fieldrequired">%s</td><td><input type="number" name="log_retention" value="%d" min="7" max="3650" class="width50"> <span class="opacitymedium">%s</span></td></tr>',
-	$langs->trans('SettingLogRetention'),
-	$log_ret,
-	$langs->trans('SettingLogRetentionHelp')
+printf(
+	'<tr class="oddeven">'
+	. '<td class="titlefield fieldrequired">%s</td>'
+	. '<td><input type="number" name="log_retention" value="%d" min="7" max="3650" class="width50 flat"></td>'
+	. '<td class="opacitymedium">%s</td></tr>',
+	$langs->trans('SettingLogRetention'), $log_ret, $langs->trans('SettingLogRetentionHelp')
 );
-
 print '</table>';
-print '<div class="tabsAction">';
-printf('<button type="submit" name="action" value="save_settings" class="butAction">%s</button>', $langs->trans('ActionSaveSettings'));
-print '</div></form>';
+print dol_fiche_end();
 
-// ── Manifest ───────────────────────────────────────────────────────────────────
-print '<br><h3>' . $langs->trans('ManifestTitle') . '</h3>';
-if (empty($manifest)) {
-	print '<p><em>' . $langs->trans('ManifestEmpty') . '</em></p>';
-} else {
-	print '<div class="div-table-responsive">';
-	print '<table class="noborder centpercent">';
-	printf('<tr class="liste_titre"><th>%s</th><th>%s</th><th>%s</th></tr>',
-		$langs->trans('ManifestTable'), $langs->trans('ManifestRowCount'), $langs->trans('ManifestRowIds'));
-	$i = 0;
-	foreach ($manifest as $tbl => $ids) {
-		printf('<tr class="%s"><td><code>%s</code></td><td>%d</td><td style="font-size:0.82em;word-break:break-all;">%s</td></tr>',
-			($i++ % 2 === 0) ? 'even' : 'odd',
-			dol_htmlentities($tbl),
-			count($ids),
-			dol_htmlentities(implode(', ', $ids))
-		);
-	}
-	print '</table></div>';
-}
+// ── tabsAction ────────────────────────────────────────────────────────────────
+print '<div class="tabsAction">';
+
+print '<button type="submit" name="action" value="save_settings" class="butAction">'
+	. img_picto('', 'save', 'class="pictofixedwidth"')
+	. $langs->trans('ActionSaveSettings') . '</button>';
+print '</form>';
+
+print '<form method="POST" action="' . $_SERVER['PHP_SELF'] . '" style="display:inline">';
+print '<input type="hidden" name="token" value="' . newToken() . '">';
+printf(
+	'<button type="submit" name="action" value="install" class="butAction"%s onclick="return confirm(\'%s\');">%s%s</button>',
+	$is_locked ? ' disabled' : '',
+	dol_escape_js($langs->trans('ConfirmInstall')),
+	img_picto('', 'technic', 'class="pictofixedwidth"'),
+	$langs->trans('ActionInstall')
+);
+printf(
+	'<button type="submit" name="action" value="reset_snapshot" class="butAction"%s onclick="return confirm(\'%s\');">%s%s</button>',
+	($is_locked || !$snap_file) ? ' disabled' : '',
+	dol_escape_js($langs->trans('ConfirmResetSnapshot')),
+	img_picto('', 'refresh', 'class="pictofixedwidth"'),
+	$langs->trans('ActionResetSnapshot')
+);
+printf(
+	'<button type="submit" name="action" value="rollback" class="butActionDelete"%s onclick="return confirm(\'%s\');">%s%s</button>',
+	($is_locked || !$rb_file) ? ' disabled' : '',
+	dol_escape_js($langs->trans('ConfirmRollback')),
+	img_picto('', 'error', 'class="pictofixedwidth"'),
+	$langs->trans('ActionRollback')
+);
+print '</form></div>';
 
 llxFooter();
 $db->close();

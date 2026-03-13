@@ -66,16 +66,20 @@ $audit->log(
 );
 
 // ── Stream file ────────────────────────────────────────────────────────────────
-$size = filesize($path);
+// Strip PHP guard header line, deliver clean SQL to the browser
+$raw   = file_get_contents($path);
+$clean = preg_replace('/^<\?php[^\n]*\?>\s*/s', '', $raw, 1);
+// Rename download to .sql so the browser/editor handles it correctly
+$dl_name = preg_replace('/\.php$/', '.sql', $filename);
 
 header('Content-Description: File Transfer');
-header('Content-Type: application/sql');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-header('Content-Length: ' . $size);
+header('Content-Type: application/octet-stream');
+header('Content-Disposition: attachment; filename="' . $dl_name . '"');
+header('Content-Length: ' . strlen($clean));
 header('Cache-Control: no-cache, must-revalidate');
 header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
 
 $db->close();
-readfile($path);
+print $clean;
 exit;
