@@ -1,0 +1,106 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# deploy-dev.yml -- Deploy to Dev server via SFTP on push to main
+#
+# Auth priority:
+#   1. Key + Password  → decrypt key passphrase with password, use key for SFTP
+#                        if decryption fails → fall back to password SFTP auth
+#   2. Key only        → use key as-is (assumes no passphrase)
+#   3. Password only   → use password for SFTP auth
+#
+# Required GitHub Secrets:
+#   DEV_FTP_HOST        -- hostname, optionally with port: host or host:port
+#   DEV_FTP_USERNAME    -- SFTP username
+#   DEV_FTP_PASSWORD    -- password / key passphrase (optional)
+#   DEV_FTP_KEY         -- SSH private key in OpenSSH format (optional)
+#   DEV_FTP_PATH        -- base remote path (e.g. /home/user/htdocs/custom/)
+#   DEV_FTP_PATH_SUFFIX -- appended to DEV_FTP_PATH (e.g. mokodolitraining/)
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to Dev
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — show what would be synced without transferring files'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+jobs:
+  deploy:
+    name: SFTP Sync
+    runs-on: ubuntu-latest
+
+    env:
+      # Sensitive — stored as GitHub Secrets
+      DEV_FTP_KEY:      ${{ secrets.DEV_FTP_KEY }}
+      DEV_FTP_PASSWORD: ${{ secrets.DEV_FTP_PASSWORD }}
+      # Non-sensitive — stored as GitHub Variables (vars.*)
+      DEV_FTP_HOST:        ${{ vars.DEV_FTP_HOST }}
+      DEV_FTP_USERNAME:    ${{ vars.DEV_FTP_USERNAME }}
+      DEV_FTP_PATH:        ${{ vars.DEV_FTP_PATH }}
+      DEV_FTP_PATH_SUFFIX: ${{ vars.DEV_FTP_PATH_SUFFIX }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Resolve connection and auth
+        id: conn
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: php scripts/deploy-resolve.php
+
+      - name: Sync src/ to remote (key auth)
+        if: steps.conn.outputs.auth_method == 'key'
+        run: |
+          lftp -c "
+            set sftp:connect-program 'ssh -i ~/.ssh/deploy_key -p ${{ steps.conn.outputs.port }} -o StrictHostKeyChecking=accept-new';
+            open sftp://${DEV_FTP_USERNAME}@${{ steps.conn.outputs.host }};
+            mirror --reverse --delete --verbose ${{ steps.conn.outputs.dry_flag }} \
+              --exclude ^sftp-config \
+              --exclude ^\.git \
+              --exclude ^\.DS_Store \
+              --exclude ^conf\.php \
+              src/ ${{ steps.conn.outputs.remote }};
+            bye
+          " 2>&1 | tee /tmp/lftp-output.log
+
+      - name: Sync src/ to remote (password auth)
+        if: steps.conn.outputs.auth_method == 'password'
+        run: |
+          lftp -c "
+            set ftp:ssl-allow yes;
+            set ssl:verify-certificate no;
+            open sftp://${DEV_FTP_USERNAME}:${DEV_FTP_PASSWORD}@${{ steps.conn.outputs.host }}:${{ steps.conn.outputs.port }};
+            mirror --reverse --delete --verbose ${{ steps.conn.outputs.dry_flag }} \
+              --exclude ^sftp-config \
+              --exclude ^\.git \
+              --exclude ^\.DS_Store \
+              --exclude ^conf\.php \
+              src/ ${{ steps.conn.outputs.remote }};
+            bye
+          " 2>&1 | tee /tmp/lftp-output.log
+
+      - name: Generate deploy summary
+        if: always()
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          php scripts/deploy-summary.php \
+            /tmp/lftp-output.log \
+            "$DRY_RUN" \
+            "${{ steps.conn.outputs.remote }}" \
+            "${{ steps.conn.outputs.host }}"
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
