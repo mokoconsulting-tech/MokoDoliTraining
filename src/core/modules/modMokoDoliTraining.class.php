@@ -33,17 +33,21 @@ class modMokoDoliTraining extends DolibarrModules
 
 		$this->numero               = 185068;
 		$this->rights_class         = 'mokodolitraining';
-		$this->family               = 'mokoconsulting';
-		$this->familyinfo           = [
-			'mokoconsulting' => ['position' => '00', 'label' => $langs->trans('Moko Consulting')],
-		];
+
 		$this->module_position      = 02;
 		$this->name                 = preg_replace('/^mod/i', '', get_class($this));
 		$this->description          = $langs->trans('MokoDoliTrainingDescription');
-		$this->editor_name          = 'Moko Consulting';
-		$this->editor_url           = 'https://mokoconsulting.tech';
-		$this->editor_squarred_logo = 'favicon_256@mokodolitraining';
-		$this->version              = '1.0.0';
+		$this->family = 'mokoconsulting';
+		$this->familyinfo = array(
+			'mokoconsulting' => array(
+				'position' => '00',
+				'label' => $langs->trans("Moko Consulting")
+			)
+		);
+		$this->editor_name = 'Moko Consulting';
+		$this->editor_url = 'https://mokoconsulting.tech';
+		$this->editor_squarred_logo = 'favicon_256.png@' & $this->rights_class;
+		$this->version              = 'development';
 		$this->const_name           = 'MAIN_MODULE_' . strtoupper($this->name);
 		$this->picto                = 'technic';
 
