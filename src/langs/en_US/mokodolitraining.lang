@@ -1,0 +1,18 @@
+; Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+; This file is part of a Moko Consulting project.
+; SPDX-License-Identifier: GPL-3.0-or-later
+;
+; DEFGROUP: MokoDoliTraining.Lang
+; INGROUP:  MokoDoliTraining
+; REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
+; PATH:     /langs/en_US/mokodolitraining.lang
+; VERSION:  01.00.00
+; BRIEF:    English language strings for MokoDoliTraining module.
+
+MokoDoliTrainingDescription = Demo and training dataset manager for Dolibarr v23+
+SeedTrainingData = Seed Training Data
+ResetTrainingData = Reset Training Data
+ManifestTitle = Row Manifest
+ManifestDescription = All rowids inserted by mokotraining.sql, tracked per table for safe reset.
+ConfirmSeed = Load all training data? Existing rows will be updated via ON DUPLICATE KEY.
+ConfirmReset = Delete ALL training data rows? This cannot be undone.
