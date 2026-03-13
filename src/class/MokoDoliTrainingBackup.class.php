@@ -57,14 +57,19 @@ class MokoDoliTrainingBackup
 	public function acquireLock(): bool
 	{
 		if (!is_dir($this->backup_dir)) {
-			mkdir($this->backup_dir, 0750, true);
+			dol_mkdir($this->backup_dir);
 		}
+		// Break stale locks older than LOCK_TTL
 		if (file_exists($this->lock_file)) {
 			$age = time() - (int) file_get_contents($this->lock_file);
 			if ($age < self::LOCK_TTL) return false;
-			unlink($this->lock_file);
+			@unlink($this->lock_file);
 		}
-		file_put_contents($this->lock_file, (string) time());
+		// Atomic create -- 'x' flag fails if file already exists
+		$fh = @fopen($this->lock_file, 'x');
+		if ($fh === false) return false;
+		fwrite($fh, (string) time());
+		fclose($fh);
 		return true;
 	}
 
@@ -263,6 +268,10 @@ class MokoDoliTrainingBackup
 
 	private function dumpTableRows(string $tbl, array $rowids, string $pk): array
 	{
+		if (!preg_match('/^[a-zA-Z0-9_]+$/', $tbl)) {
+			return ['sql' => '', 'count' => 0, 'errors' => ["Invalid table name: $tbl"]];
+		}
+
 		$id_list = implode(',', array_map('intval', $rowids));
 
 		$res = $this->db->query("SHOW COLUMNS FROM `$tbl`");
@@ -369,6 +378,8 @@ class MokoDoliTrainingBackup
 		$stmt     = '';
 		$in_delim = false;
 
+		$this->db->begin();
+
 		foreach (file($path) as $raw_line) {
 			$t = trim($raw_line);
 
@@ -392,6 +403,12 @@ class MokoDoliTrainingBackup
 				}
 				$stmt = '';
 			}
+		}
+
+		if (!empty($errors)) {
+			$this->db->rollback();
+		} else {
+			$this->db->commit();
 		}
 
 		return ['ok' => $ok, 'errors' => $errors];

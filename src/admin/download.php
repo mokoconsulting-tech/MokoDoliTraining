@@ -30,7 +30,7 @@ if (!$user->admin) {
 $raw_name = GETPOST('filename', 'alpha');
 $filename = basename($raw_name); // strip any path components
 
-if (!$filename || !preg_match('/^(rollback|snapshot)_\d{8}_\d{6}\.sql$/', $filename)) {
+if (!$filename || !preg_match('/^(rollback|snapshot)_\d{8}_\d{6}\.php$/', $filename)) {
 	http_response_code(400);
 	print 'Invalid filename.';
 	exit;
@@ -58,7 +58,7 @@ if (!$integrity['ok']) {
 $audit = new MokoDoliTrainingAudit($db);
 $audit->log(
 	fk_user: (int) $user->id,
-	action:  'backup_create',
+	action:  'backup_download',
 	status:  'ok',
 	backup_file: $path,
 	note:    'Download: ' . $filename,
@@ -75,7 +75,7 @@ $dl_name = preg_replace('/\.php$/', '.sql', $filename);
 header('Content-Description: File Transfer');
 header('Content-Type: application/octet-stream');
 header('Content-Disposition: attachment; filename="' . $dl_name . '"');
-header('Content-Length: ' . strlen($clean));
+header('Content-Length: ' . mb_strlen($clean, '8bit'));
 header('Cache-Control: no-cache, must-revalidate');
 header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');

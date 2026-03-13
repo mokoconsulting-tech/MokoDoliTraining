@@ -21,7 +21,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `download.php`: filename regex rejected all backups (required `.sql` but files use `.php`)
+- `download.php`: audit log recorded `backup_create` instead of `backup_download`
+- `download.php`: `Content-Length` header used `strlen()` instead of `mb_strlen($s, '8bit')`
+- `MokoDoliTrainingBackup::acquireLock()`: TOCTOU race condition; now uses atomic `fopen('x')`
+- `MokoDoliTrainingBackup::execSqlFile()`: partial restores left DB inconsistent; now wrapped in `$db->begin()`/`commit()`/`rollback()`
+- `MokoDoliTrainingBackup::dumpTableRows()`: table names from manifest not sanitized before SQL use
+- `MokoDoliTrainingBackup`: PHP parse error from `?>` closing tag inside `//` comment on line 355
+- `modMokoDoliTraining::_reactivateAllModules()`: module name derivation broke camelCase names; now uses `dolGetModulesDirs()`
+
 ### Added
+- `MokoDoliTrainingCron::resetToSnapshot()`: implemented missing cron method (was registered but undefined)
+- `MokoDoliTrainingAudit::ACTIONS`: added `backup_download`, `settings_save`, `auto_snapshot`, `uninstall_rollback`
+
+### Previously Added
 - Initial module scaffold (ID 185068)
 - Full Dolibarr v23 seed dataset — 49 tables, 740 rows
 - `mokotraining_reset.sql` — 49 DELETE statements in safe FK order

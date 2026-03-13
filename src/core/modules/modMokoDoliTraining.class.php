@@ -219,47 +219,38 @@ class modMokoDoliTraining extends DolibarrModules
 	/**
 	 * Re-run init() on every currently active module to restore their menu
 	 * entries after Dolibarr wipes the menu table during any module activation.
+	 * Uses dolGetModulesDirs() to discover module descriptors with correct casing.
 	 */
 	private function _reactivateAllModules(): void
 	{
-		global $conf;
+		require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
 
-		$res = $this->db->query(
-			"SELECT name FROM llx_const
-			 WHERE name LIKE 'MAIN_MODULE_%'
-			 AND value = '1'
-			 AND entity IN (0, " . (int) $conf->entity . ")"
-		);
-		if (!$res) return;
+		$modulesdir = dolGetModulesDirs();
 
-		$htdocs = DOL_DOCUMENT_ROOT;
+		foreach ($modulesdir as $dir) {
+			$files = @scandir($dir);
+			if (!$files) continue;
 
-		while ($obj = $this->db->fetch_object($res)) {
-			// Derive module name from constant: MAIN_MODULE_FOO -> modFoo
-			$mod_upper = preg_replace('/^MAIN_MODULE_/', '', $obj->name);
-			$mod_name  = 'mod' . ucfirst(strtolower($mod_upper));
+			foreach ($files as $file) {
+				if (!preg_match('/^(mod.+)\.class\.php$/i', $file, $m)) continue;
 
-			// Skip ourselves to avoid recursion
-			if (strtolower($mod_name) === 'modmokodolitraining') continue;
+				$mod_name  = $m[1];
+				$mod_upper = preg_replace('/^mod/i', '', $mod_name);
+				$const     = 'MAIN_MODULE_' . strtoupper($mod_upper);
 
-			// Search core then custom for the descriptor file
-			$candidates = [
-				$htdocs . '/core/modules/' . $mod_name . '.class.php',
-				$htdocs . '/custom/' . strtolower($mod_upper) . '/core/modules/' . $mod_name . '.class.php',
-			];
+				// Skip ourselves to avoid recursion
+				if (strtolower($mod_name) === 'modmokodolitraining') continue;
 
-			$found = '';
-			foreach ($candidates as $c) {
-				if (file_exists($c)) { $found = $c; break; }
-			}
-			if (!$found) continue;
+				// Only re-init modules that are currently active
+				if (!getDolGlobalString($const)) continue;
 
-			require_once $found;
-			if (!class_exists($mod_name)) continue;
+				require_once $dir . $file;
+				if (!class_exists($mod_name)) continue;
 
-			$mod = new $mod_name($this->db);
-			if (method_exists($mod, '_init')) {
-				$mod->_init([], '');
+				$mod = new $mod_name($this->db);
+				if (method_exists($mod, '_init')) {
+					$mod->_init([], '');
+				}
 			}
 		}
 	}

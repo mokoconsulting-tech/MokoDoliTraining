@@ -24,6 +24,68 @@ class MokoDoliTrainingCron
 	}
 
 	/**
+	 * Reset training data and restore from the latest snapshot backup.
+	 * Called by the Dolibarr cron engine to keep demo instances clean.
+	 *
+	 * @return int 0 on success, 1 on error
+	 */
+	public function resetToSnapshot(): int
+	{
+		global $conf;
+
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
+
+		$max_backups = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
+
+		$backup = new MokoDoliTrainingBackup($this->db, $max_backups);
+		$audit  = new MokoDoliTrainingAudit($this->db);
+		$entity = (int) $conf->entity;
+
+		$snapshot = $backup->getLatest('snapshot');
+		if (!$snapshot) {
+			$this->error  = 'No snapshot backup found.';
+			$this->output = $this->error;
+			$audit->log(0, 'reset_snapshot', 'error', note: $this->error, entity: $entity);
+			return 1;
+		}
+
+		if (!$backup->acquireLock()) {
+			$this->error  = 'Could not acquire lock -- another operation is in progress.';
+			$this->output = $this->error;
+			return 1;
+		}
+
+		$t0     = hrtime(true);
+		$reset  = $backup->runReset();
+		$res    = $backup->restoreFromFile($snapshot);
+		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
+		$errors = array_merge($reset['errors'] ?? [], $res['errors'] ?? []);
+
+		$status = empty($errors) ? 'ok' : 'partial';
+		dolibarr_set_const($this->db, 'MOKODOLITRAINING_RESET_DATE', dol_now(), 'chaine', 0, '', $entity);
+
+		$audit->log(
+			fk_user:      0,
+			action:       'reset_snapshot',
+			status:       $status,
+			rows_affected: $res['ok'] ?? 0,
+			duration_ms:  $ms,
+			backup_file:  $snapshot,
+			errors:       $errors,
+			entity:       $entity
+		);
+
+		$backup->releaseLock();
+
+		$this->output = "Reset to snapshot: {$status} -- " . ($res['ok'] ?? 0) . " statements, {$ms}ms.";
+		if (!empty($errors)) {
+			$this->output .= ' Errors: ' . implode(' | ', $errors);
+		}
+		return empty($errors) ? 0 : 1;
+	}
+
+	/**
 	 * Entry point called by the Dolibarr cron engine.
 	 * Enforces backup retention for rollback and snapshot types,
 	 * then purges audit log entries older than the configured retention period.

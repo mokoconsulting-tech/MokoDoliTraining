@@ -17,15 +17,19 @@ class MokoDoliTrainingAudit
 	private $db;
 
 	const ACTIONS = [
-		'install'         => 'Install Training Records',
-		'seed'            => 'Seed',
-		'reset_snapshot'  => 'Reset to Snapshot',
-		'rollback'        => 'Rollback',
-		'backup_create'   => 'Backup Created',
-		'backup_restore'  => 'Backup Restored',
-		'backup_delete'   => 'Backup Deleted',
-		'backup_purge'    => 'Backup Purge',
-		'integrity_check' => 'Integrity Check',
+		'install'            => 'Install Training Records',
+		'seed'               => 'Seed',
+		'reset_snapshot'     => 'Reset to Snapshot',
+		'rollback'           => 'Rollback',
+		'backup_create'      => 'Backup Created',
+		'backup_restore'     => 'Backup Restored',
+		'backup_delete'      => 'Backup Deleted',
+		'backup_download'    => 'Backup Downloaded',
+		'backup_purge'       => 'Backup Purge',
+		'integrity_check'    => 'Integrity Check',
+		'settings_save'      => 'Settings Saved',
+		'auto_snapshot'      => 'Auto Snapshot',
+		'uninstall_rollback' => 'Uninstall Rollback',
 	];
 
 	public function __construct($db)
