@@ -50,7 +50,7 @@ class MokoDoliTrainingAudit
 		string $note          = '',
 		int    $entity        = 1
 	): bool {
-		$sql = "INSERT INTO `llx_mokodolitraining_log`
+		$sql = "INSERT INTO `" . MAIN_DB_PREFIX . "mokodolitraining_log`
 			(`entity`,`datec`,`fk_user`,`action`,`status`,`rows_affected`,`statements`,
 			 `backup_file`,`checksum`,`duration_ms`,`errors`,`note`)
 			VALUES (
@@ -74,8 +74,8 @@ class MokoDoliTrainingAudit
 	{
 		$res = $this->db->query(
 			"SELECT l.*, u.login
-			 FROM `llx_mokodolitraining_log` l
-			 LEFT JOIN `llx_user` u ON u.rowid = l.fk_user
+			 FROM `" . MAIN_DB_PREFIX . "mokodolitraining_log` l
+			 LEFT JOIN `" . MAIN_DB_PREFIX . "user` u ON u.rowid = l.fk_user
 			 WHERE l.entity = " . (int) $entity . "
 			 ORDER BY l.datec DESC
 			 LIMIT " . (int) $limit
@@ -92,7 +92,7 @@ class MokoDoliTrainingAudit
 	{
 		$cutoff = gmdate('Y-m-d H:i:s', strtotime("-{$days} days"));
 		$res = $this->db->query(
-			"DELETE FROM `llx_mokodolitraining_log`
+			"DELETE FROM `" . MAIN_DB_PREFIX . "mokodolitraining_log`
 			 WHERE entity = " . (int) $entity . "
 			 AND datec < '" . $this->db->escape($cutoff) . "'"
 		);
@@ -103,7 +103,7 @@ class MokoDoliTrainingAudit
 	{
 		$res = $this->db->query(
 			"SELECT action, status, COUNT(*) as cnt
-			 FROM `llx_mokodolitraining_log`
+			 FROM `" . MAIN_DB_PREFIX . "mokodolitraining_log`
 			 WHERE entity = " . (int) $entity . "
 			 GROUP BY action, status"
 		);

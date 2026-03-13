@@ -32,10 +32,11 @@ class MokoDoliTrainingBackup
 	// Prevents HTTP download even if .htaccess is missing or misconfigured.
 	const PHP_GUARD = "<?php die('No direct access.'); ?>\n";
 
-	// Junction tables that use fk_categorie instead of rowid as manifest PK
+	// Junction tables that use fk_categorie instead of rowid as manifest PK.
+	// Keys use bare names (no prefix) -- loadManifest() strips the prefix.
 	const JUNCTION = [
-		'llx_categorie_societe' => 'fk_categorie',
-		'llx_categorie_product' => 'fk_categorie',
+		'categorie_societe' => 'fk_categorie',
+		'categorie_product' => 'fk_categorie',
 	];
 
 	const LOCK_TTL = 300; // seconds before a stale .lock file is broken
@@ -234,7 +235,8 @@ class MokoDoliTrainingBackup
 		$total = 0;
 
 		foreach ($manifest as $tbl => $rowids) {
-			$pk     = self::JUNCTION[$tbl] ?? 'rowid';
+			$bare   = preg_replace('/^' . preg_quote(MAIN_DB_PREFIX, '/') . '/', '', $tbl);
+			$pk     = self::JUNCTION[$bare] ?? 'rowid';
 			$result = $this->dumpTableRows($tbl, $rowids, $pk);
 			$errors = array_merge($errors, $result['errors']);
 			if (!empty($result['sql'])) {
@@ -393,6 +395,10 @@ class MokoDoliTrainingBackup
 
 			if (str_ends_with(rtrim($t), ';')) {
 				$clean = trim($stmt);
+				// Replace default llx_ prefix with configured MAIN_DB_PREFIX
+				if (MAIN_DB_PREFIX !== 'llx_') {
+					$clean = str_replace('llx_', MAIN_DB_PREFIX, $clean);
+				}
 				if ($clean !== '') {
 					$res = $this->db->query($clean);
 					if ($res === false) {
@@ -503,6 +509,17 @@ class MokoDoliTrainingBackup
 	{
 		if (!file_exists($this->manifest_path)) return [];
 		$raw = json_decode(file_get_contents($this->manifest_path), true);
-		return is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
+		$tables = is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
+
+		// Replace llx_ prefix in manifest keys with the configured MAIN_DB_PREFIX
+		$prefix = MAIN_DB_PREFIX;
+		if ($prefix !== 'llx_') {
+			$out = [];
+			foreach ($tables as $tbl => $rowids) {
+				$out[preg_replace('/^llx_/', $prefix, $tbl)] = $rowids;
+			}
+			return $out;
+		}
+		return $tables;
 	}
 }

@@ -1,11 +1,12 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────────────────────────
-# deploy-sftp.sh -- Upload changed src/ files to remote server via pscp (PuTTY)
+# deploy-sftp.sh -- Sync src/ directory to remote server via psftp (PuTTY)
 #
 # Called by the post-commit git hook. Reads connection details from
-# src/sftp-config.json and uploads only the files changed in the last commit.
+# src/sftp-config.json. Uploads changed/added files and deletes files
+# removed from src/ so the remote matches the local src/ directory.
 #
-# Requirements: pscp (PuTTY), jq (optional, falls back to grep/sed)
+# Requirements: psftp (PuTTY)
 # ──────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -42,39 +43,63 @@ if [[ ! -f "$SSH_KEY" ]]; then
 	exit 0
 fi
 
-# Get files changed in the last commit, filter to src/ only
-CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD -- src/)
+# Get files changed in the last commit (added, modified, deleted), filter to src/
+CHANGED=$(git diff-tree --no-commit-id --name-status -r HEAD -- src/)
 
-if [[ -z "$CHANGED_FILES" ]]; then
-	echo "[deploy] No src/ files changed -- nothing to upload."
+if [[ -z "$CHANGED" ]]; then
+	echo "[deploy] No src/ files changed -- nothing to sync."
 	exit 0
 fi
 
-echo "[deploy] Uploading changed files to $USER@$HOST:$REMOTE_PATH"
+echo "[deploy] Syncing to $USER@$HOST:$REMOTE_PATH"
+
+# Build psftp batch commands
+BATCH_FILE=$(mktemp)
+trap 'rm -f "$BATCH_FILE"' EXIT
+
+echo "cd $REMOTE_PATH" >> "$BATCH_FILE"
 
 UPLOADED=0
-FAILED=0
+DELETED=0
+SKIPPED=0
 
-while IFS= read -r file; do
-	local_path="$REPO_ROOT/$file"
+while IFS=$'\t' read -r status file; do
 	# Strip 'src/' prefix to get relative path within remote_path
 	remote_rel="${file#src/}"
-	remote_dest="$REMOTE_PATH$remote_rel"
 
-	if [[ ! -f "$local_path" ]]; then
-		# File was deleted -- skip (would need separate delete logic)
-		echo "[deploy]   SKIP (deleted): $file"
-		continue
-	fi
+	case "$status" in
+		A|M)
+			# Added or Modified -- upload
+			local_path="$REPO_ROOT/$file"
+			if [[ -f "$local_path" ]]; then
+				# Ensure remote directory exists
+				remote_dir=$(dirname "$remote_rel")
+				if [[ "$remote_dir" != "." ]]; then
+					echo "mkdir $remote_dir" >> "$BATCH_FILE"
+				fi
+				echo "put \"$local_path\" \"$remote_rel\"" >> "$BATCH_FILE"
+				echo "[deploy]   PUT $file"
+				((UPLOADED++))
+			fi
+			;;
+		D)
+			# Deleted -- remove from remote
+			echo "rm \"$remote_rel\"" >> "$BATCH_FILE"
+			echo "[deploy]   DEL $file"
+			((DELETED++))
+			;;
+		*)
+			echo "[deploy]   SKIP ($status): $file"
+			((SKIPPED++))
+			;;
+	esac
+done <<< "$CHANGED"
 
-	echo -n "[deploy]   $file -> $remote_dest ... "
-	if pscp -q -batch -i "$SSH_KEY" -P "$PORT" "$local_path" "$USER@$HOST:$remote_dest" 2>/dev/null; then
-		echo "OK"
-		((UPLOADED++))
-	else
-		echo "FAILED"
-		((FAILED++))
-	fi
-done <<< "$CHANGED_FILES"
+echo "quit" >> "$BATCH_FILE"
 
-echo "[deploy] Done: $UPLOADED uploaded, $FAILED failed."
+# Execute batch via psftp
+if psftp "$USER@$HOST" -P "$PORT" -i "$SSH_KEY" -batch -b "$BATCH_FILE" 2>&1 | grep -v "^Remote working directory" | grep -v "^Using keyboard"; then
+	true
+fi
+
+echo "[deploy] Done: $UPLOADED uploaded, $DELETED deleted, $SKIPPED skipped."
