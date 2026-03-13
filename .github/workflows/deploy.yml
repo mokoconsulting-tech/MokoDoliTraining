@@ -1,0 +1,61 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# deploy.yml -- Auto-deploy src/ to Dreamhost via SFTP on push
+#
+# Triggers on pushes to main that change files under src/.
+# Uses lftp mirror to sync the src/ directory to the remote server,
+# uploading new/changed files and deleting files removed from src/.
+#
+# Required GitHub Secrets:
+#   SFTP_HOST         -- SFTP server hostname
+#   SFTP_USER         -- SFTP username
+#   SFTP_PRIVATE_KEY  -- SSH private key (OpenSSH format, NOT PPK)
+#   SFTP_REMOTE_PATH  -- Absolute remote path (e.g. /home/user/htdocs/custom/module/)
+#   SFTP_PORT         -- (optional) SSH port, defaults to 22
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to Dreamhost
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**']
+
+jobs:
+  deploy:
+    name: SFTP Sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Write SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SFTP_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Add host to known_hosts
+        run: |
+          ssh-keyscan -p ${{ secrets.SFTP_PORT || 22 }} ${{ secrets.SFTP_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync src/ to remote via SFTP
+        run: |
+          lftp -c "
+            set sftp:connect-program 'ssh -i ~/.ssh/deploy_key -p ${{ secrets.SFTP_PORT || 22 }} -o StrictHostKeyChecking=accept-new';
+            open sftp://${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }};
+            mirror --reverse --delete --verbose \
+              --exclude ^sftp-config \
+              --exclude ^\.git \
+              --exclude ^\.DS_Store \
+              --exclude ^conf\.php \
+              src/ ${{ secrets.SFTP_REMOTE_PATH }};
+            bye
+          "
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

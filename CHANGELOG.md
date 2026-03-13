@@ -32,6 +32,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `modMokoDoliTraining::_reactivateAllModules()`: module name derivation broke camelCase names; now uses `dolGetModulesDirs()`
 
 ### Added
+- `.github/workflows/deploy.yml` — GitHub Actions workflow: auto-deploys `src/` to Dreamhost via SFTP on push to `main` (enables mobile editing via Claude.ai → GitHub → server)
 - `MokoDoliTrainingCron::resetToSnapshot()`: implemented missing cron method (was registered but undefined)
 - `MokoDoliTrainingAudit::ACTIONS`: added `backup_download`, `settings_save`, `auto_snapshot`, `uninstall_rollback`
 
