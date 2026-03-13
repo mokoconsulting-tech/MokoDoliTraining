@@ -55,67 +55,9 @@ jobs:
 
       - name: Resolve connection and auth
         id: conn
-        run: |
-          # ── Host / port ────────────────────────────────────────────────────
-          if [[ "$DEV_FTP_HOST" == *:* ]]; then
-            HOST="${DEV_FTP_HOST%%:*}"
-            PORT="${DEV_FTP_HOST##*:}"
-          else
-            HOST="$DEV_FTP_HOST"
-            PORT="22"
-          fi
-
-          # ── Remote path ────────────────────────────────────────────────────
-          # Trim trailing slash from PATH, leading slash from SUFFIX, rejoin cleanly
-          BASE="${DEV_FTP_PATH%/}"
-          SUFFIX="${DEV_FTP_PATH_SUFFIX#/}"
-          REMOTE_PATH="${BASE}/${SUFFIX}"
-
-          # ── Dry-run flag ───────────────────────────────────────────────────
-          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
-          DRY_FLAG=""
-          if [[ "$DRY_RUN" == "true" ]]; then
-            DRY_FLAG="--dry-run"
-            echo "::notice::DRY RUN — no files will be transferred"
-          fi
-
-          # ── Auth: resolve method ───────────────────────────────────────────
-          # Outcomes written to GITHUB_OUTPUT:
-          #   auth_method = key | password
-          #   key_path    = path to unprotected key file (key auth only)
-          AUTH_METHOD="password"
-
-          if [[ -n "$DEV_FTP_KEY" ]]; then
-            mkdir -p ~/.ssh
-            echo "$DEV_FTP_KEY" > ~/.ssh/deploy_key
-            chmod 600 ~/.ssh/deploy_key
-
-            if [[ -n "$DEV_FTP_PASSWORD" ]]; then
-              # Try to strip passphrase from key using password
-              if ssh-keygen -p -P "$DEV_FTP_PASSWORD" -N "" -f ~/.ssh/deploy_key &>/dev/null; then
-                echo "::notice::Key passphrase decrypted — using key auth"
-                AUTH_METHOD="key"
-              else
-                echo "::warning::Key passphrase decryption failed — falling back to password auth"
-                rm -f ~/.ssh/deploy_key
-                AUTH_METHOD="password"
-              fi
-            else
-              # Key only, no password — use key as-is (assumed no passphrase)
-              echo "::notice::No password provided — using key auth as-is"
-              AUTH_METHOD="key"
-            fi
-          fi
-
-          if [[ "$AUTH_METHOD" == "key" ]]; then
-            ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          fi
-
-          echo "host=$HOST"            >> "$GITHUB_OUTPUT"
-          echo "port=$PORT"            >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE_PATH"   >> "$GITHUB_OUTPUT"
-          echo "dry_flag=$DRY_FLAG"    >> "$GITHUB_OUTPUT"
-          echo "auth_method=$AUTH_METHOD" >> "$GITHUB_OUTPUT"
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: php scripts/deploy-resolve.php
 
       - name: Sync src/ to remote (key auth)
         if: steps.conn.outputs.auth_method == 'key'
