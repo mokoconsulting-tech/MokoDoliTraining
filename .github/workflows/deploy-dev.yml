@@ -1,25 +1,32 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# deploy.yml -- Auto-deploy src/ to Dreamhost via SFTP on push
+# deploy-dev.yml -- Deploy to Dev server via SFTP on push to main
 #
-# Triggers on pushes to main that change files under src/.
-# Uses lftp mirror to sync src/ to the remote server,
-# uploading new/changed files and deleting files removed from src/.
+# Triggers automatically on push to main when src/ files change.
+# Can also be triggered manually via workflow_dispatch with a dry_run option.
 #
 # Required GitHub Secrets:
 #   DEV_FTP_HOST        -- hostname, optionally with port: host or host:port
-#   DEV_FTP_USERNAME    -- SFTP/FTP username
-#   DEV_FTP_PASSWORD    -- password (used if DEV_FTP_KEY is not set)
-#   DEV_FTP_KEY         -- SSH private key in OpenSSH format (preferred over password)
+#   DEV_FTP_USERNAME    -- SFTP username
+#   DEV_FTP_PASSWORD    -- password (used when DEV_FTP_KEY is not set)
+#   DEV_FTP_KEY         -- SSH private key in OpenSSH format (preferred)
 #   DEV_FTP_PATH        -- base remote path (e.g. /home/user/htdocs/custom/)
 #   DEV_FTP_PATH_SUFFIX -- appended to DEV_FTP_PATH (e.g. mokodolitraining/)
 # ──────────────────────────────────────────────────────────────────────────────
 
-name: Deploy to Dreamhost
+name: Deploy to Dev
 
 on:
   push:
     branches: [main]
     paths: ['src/**']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — show what would be synced without transferring files'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 jobs:
   deploy:
@@ -33,11 +40,11 @@ jobs:
       - name: Install lftp
         run: sudo apt-get update && sudo apt-get install -y lftp
 
-      - name: Resolve host and port
+      - name: Resolve host, port, and remote path
         id: conn
         run: |
           RAW_HOST="${{ secrets.DEV_FTP_HOST }}"
-          # Split host:port if colon present, otherwise default to 22
+          # Split host:port if colon is present, otherwise default port to 22
           if [[ "$RAW_HOST" == *:* ]]; then
             HOST="${RAW_HOST%%:*}"
             PORT="${RAW_HOST##*:}"
@@ -46,9 +53,17 @@ jobs:
             PORT="22"
           fi
           REMOTE_PATH="${{ secrets.DEV_FTP_PATH }}${{ secrets.DEV_FTP_PATH_SUFFIX }}"
-          echo "host=$HOST"        >> "$GITHUB_OUTPUT"
-          echo "port=$PORT"        >> "$GITHUB_OUTPUT"
+          echo "host=$HOST"          >> "$GITHUB_OUTPUT"
+          echo "port=$PORT"          >> "$GITHUB_OUTPUT"
           echo "remote=$REMOTE_PATH" >> "$GITHUB_OUTPUT"
+          # Dry run flag: set by manual dispatch input, or false on auto push
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "dry_flag=--dry-run" >> "$GITHUB_OUTPUT"
+            echo "::notice::DRY RUN — no files will be transferred"
+          else
+            echo "dry_flag="          >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Write SSH key (if provided)
         if: ${{ secrets.DEV_FTP_KEY != '' }}
@@ -64,7 +79,7 @@ jobs:
           lftp -c "
             set sftp:connect-program 'ssh -i ~/.ssh/deploy_key -p ${{ steps.conn.outputs.port }} -o StrictHostKeyChecking=accept-new';
             open sftp://${{ secrets.DEV_FTP_USERNAME }}@${{ steps.conn.outputs.host }};
-            mirror --reverse --delete --verbose \
+            mirror --reverse --delete --verbose ${{ steps.conn.outputs.dry_flag }} \
               --exclude ^sftp-config \
               --exclude ^\.git \
               --exclude ^\.DS_Store \
@@ -80,7 +95,7 @@ jobs:
             set ftp:ssl-allow yes;
             set ssl:verify-certificate no;
             open sftp://${{ secrets.DEV_FTP_USERNAME }}:${{ secrets.DEV_FTP_PASSWORD }}@${{ steps.conn.outputs.host }}:${{ steps.conn.outputs.port }};
-            mirror --reverse --delete --verbose \
+            mirror --reverse --delete --verbose ${{ steps.conn.outputs.dry_flag }} \
               --exclude ^sftp-config \
               --exclude ^\.git \
               --exclude ^\.DS_Store \
