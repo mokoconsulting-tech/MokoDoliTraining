@@ -17,158 +17,142 @@
  * DEFGROUP: MokoDoliTraining.Module
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
- * PATH:     /core/modules/modMokoDoliTraining.class.php
+ * PATH:     /src/core/modules/modMokoDoliTraining.class.php
  * VERSION:  01.00.00
- * BRIEF:    Dolibarr module descriptor for MokoDoliTraining demo/training dataset.
- * NOTE:     Module ID 185068. Tracks all inserted rowids for reset and teardown.
+ * BRIEF:    Dolibarr module descriptor for MokoDoliTraining.
+ * NOTE:     Module ID 185068. Registers cron, triggers, and 8 constants.
  */
 
-/**
- * \defgroup   mokodolitraining    MokoDoliTraining
- * \brief       Demo and training dataset manager for Dolibarr.
- */
-
-/**
- * Class modMokoDoliTraining
- *
- * Module descriptor for the MokoDoliTraining demo dataset.
- * Tracks all rowids inserted by mokotraining.sql and provides
- * reset and teardown SQL via the admin interface.
- */
 class modMokoDoliTraining extends DolibarrModules
 {
-	/**
-	 * Constructor. Define names, constants, directories, boxes, permissions.
-	 *
-	 * @param DoliDB $db Database handler
-	 */
 	public function __construct($db)
 	{
 		global $langs, $conf;
 
 		$this->db = $db;
 
-		// Module identifiers
-		$this->numero          = 185068;
-		$this->rights_class    = 'mokodolitraining';
-		$this->family          = 'mokoconsulting';
-		$this->familyinfo      = [
-			'mokoconsulting' => [
-				'position' => '00',
-				'label'    => $langs->trans('Moko Consulting'),
-			],
+		$this->numero               = 185068;
+		$this->rights_class         = 'mokodolitraining';
+		$this->family               = 'mokoconsulting';
+		$this->familyinfo           = [
+			'mokoconsulting' => ['position' => '01', 'label' => $langs->trans('MokoConsulting')],
 		];
-		$this->module_position = 1;
-		$this->name            = preg_replace('/^mod/i', '', get_class($this));
-		$this->description     = 'Demo and training dataset manager for Dolibarr v23+. Tracks all inserted rowids and provides one-click reset.';
-		$this->editor_name           = 'Moko Consulting';
-		$this->editor_url            = 'https://mokoconsulting.tech';
-		$this->editor_squarred_logo  = 'favicon_256@mokodolitraining';
-		$this->version         = '1.0.0';
-		$this->const_name      = 'MAIN_MODULE_' . strtoupper($this->name);
-		$this->picto           = 'technic';
+		$this->module_position      = 2;
+		$this->name                 = preg_replace('/^mod/i', '', get_class($this));
+		$this->description          = $langs->trans('MokoDoliTrainingDescription');
+		$this->editor_name          = 'Moko Consulting';
+		$this->editor_url           = 'https://mokoconsulting.tech';
+		$this->editor_squarred_logo = 'favicon_256@mokodolitraining';
+		$this->version              = '1.0.0';
+		$this->const_name           = 'MAIN_MODULE_' . strtoupper($this->name);
+		$this->picto                = 'technic';
 
-		// Module parts
 		$this->module_parts = [
-			'triggers'   => 0,
-			'login'      => 0,
-			'substitutions' => 0,
-			'menus'      => 0,
-			'tpl'        => 0,
-			'barcode'    => 0,
-			'models'     => 0,
-			'theme'      => 0,
-			'css'        => [],
-			'js'         => [],
-			'hooks'      => [],
-			'moduleforexternal' => 0,
+			'triggers'         => 1,
+			'login'            => 0,
+			'substitutions'    => 0,
+			'menus'            => 0,
+			'tpl'              => 0,
+			'barcode'          => 0,
+			'models'           => 0,
+			'theme'            => 0,
+			'css'              => [],
+			'js'               => [],
+			'hooks'            => [],
+			'moduleforexternal'=> 0,
 		];
 
-		// Admin page
 		$this->config_page_url = ['setup.php@mokodolitraining'];
-
-		// Dependencies
 		$this->hidden          = false;
-		$this->depends         = [];
+		$this->depends         = ['modMokoCRM'];
 		$this->requiredby      = [];
 		$this->conflictwith    = [];
 		$this->langfiles       = ['mokodolitraining@mokodolitraining'];
-
-		// Permissions
 		$this->rights          = [];
 		$this->menus           = [];
+		$this->tabs            = [];
+
+		// ── Constants ────────────────────────────────────────────────────────
+		$this->const = [
+			// Dataset state
+			['MOKODOLITRAINING_VERSION',       'chaine', '1.0.0', 'Installed dataset version',                 0, 'current'],
+			['MOKODOLITRAINING_SEEDED',        'chaine', '0',     '1 when training data is currently loaded',  0, 'current'],
+			['MOKODOLITRAINING_SEED_DATE',     'chaine', '',      'Timestamp of last successful seed',         0, 'current'],
+			['MOKODOLITRAINING_RESET_DATE',    'chaine', '',      'Timestamp of last reset or rollback',       0, 'current'],
+			// Backup paths
+			['MOKODOLITRAINING_ROLLBACK_FILE', 'chaine', '',      'Absolute path to latest rollback backup',   0, 'current'],
+			['MOKODOLITRAINING_SNAPSHOT_FILE', 'chaine', '',      'Absolute path to latest snapshot backup',   0, 'current'],
+			// Operational config
+			['MOKODOLITRAINING_MAX_BACKUPS',   'chaine', '10',    'Max backup files retained per label type',  0, 'current'],
+			['MOKODOLITRAINING_LOG_RETENTION', 'chaine', '90',    'Audit log retention in days',               0, 'current'],
+		];
+
+		// ── Cron ─────────────────────────────────────────────────────────────
+		$this->cronjobs = [
+			[
+				'label'        => 'MokoDoliTraining - Backup rotation and log purge',
+				'jobtype'      => 'method',
+				'class'        => '/mokodolitraining/src/cron/MokoDoliTrainingCron.class.php',
+				'objectname'   => 'MokoDoliTrainingCron',
+				'method'       => 'rotateAndPurge',
+				'parameters'   => '',
+				'comment'      => 'Enforces backup retention limits and purges old audit log entries.',
+				'frequency'    => 1,
+				'unitfrequency'=> 86400,
+				'priority'     => 50,
+				'datestart'    => 0,
+				'dateend'      => 0,
+				'autodelete'   => 0,
+			],
+		];
 	}
 
-	/**
-	 * Return the rowid manifest for all tables inserted by mokotraining.sql.
-	 *
-	 * Keys are table names (without llx_ prefix by convention but stored with it).
-	 * Values are sorted arrays of integer rowids.
-	 *
-	 * @return array<string,int[]>
-	 */
+	// ── Static helpers ────────────────────────────────────────────────────────
+
 	public static function getManifest(): array
 	{
-		$manifest_path = dirname(__DIR__, 2) . '/sql/manifest.json';
-		if (!file_exists($manifest_path)) {
-			return [];
-		}
-		$raw = json_decode(file_get_contents($manifest_path), true);
+		$path = dirname(__DIR__, 2) . '/sql/manifest.json';
+		if (!file_exists($path)) return [];
+		$raw = json_decode(file_get_contents($path), true);
 		return is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
 	}
 
-	/**
-	 * Return the path to the seed SQL file.
-	 *
-	 * @return string
-	 */
 	public static function getSeedSqlPath(): string
 	{
 		return dirname(__DIR__, 2) . '/sql/mokotraining.sql';
 	}
 
-	/**
-	 * Return the path to the reset SQL file.
-	 *
-	 * @return string
-	 */
 	public static function getResetSqlPath(): string
 	{
 		return dirname(__DIR__, 2) . '/sql/mokotraining_reset.sql';
 	}
 
-	/**
-	 * Return a summary of total tracked rows across all tables.
-	 *
-	 * @return array{tables: int, rows: int}
-	 */
 	public static function getManifestSummary(): array
 	{
-		$manifest = self::getManifest();
-		return [
-			'tables' => count($manifest),
-			'rows'   => array_sum(array_map('count', $manifest)),
-		];
+		$m = self::getManifest();
+		return ['tables' => count($m), 'rows' => array_sum(array_map('count', $m))];
 	}
 
-	/**
-	 * Function called when module is enabled.
-	 *
-	 * @param string $options Options when enabling module ('', 'noboxes', 'newboxdefonly')
-	 * @return int             1 if OK, 0 if KO
-	 */
+	// ── Lifecycle ─────────────────────────────────────────────────────────────
+
 	public function init($options = ''): int
 	{
-		$result = $this->_load_tables('/mokodolitraining/sql/');
-		return $result < 0 ? 0 : 1;
+		$result = $this->_load_tables('/mokodolitraining/src/sql/');
+		if ($result < 0) return 0;
+
+		// Ensure backup directory exists and is protected
+		$backup_dir = dirname(__DIR__, 2) . '/backup';
+		if (!is_dir($backup_dir)) {
+			mkdir($backup_dir, 0750, true);
+		}
+		$htaccess = $backup_dir . '/.htaccess';
+		if (!file_exists($htaccess)) {
+			file_put_contents($htaccess, "Order deny,allow\nDeny from all\n");
+		}
+
+		return 1;
 	}
 
-	/**
-	 * Function called when module is disabled.
-	 *
-	 * @param string $options Options when disabling module
-	 * @return int             1 if OK, 0 if KO
-	 */
 	public function remove($options = ''): int
 	{
 		return 1;

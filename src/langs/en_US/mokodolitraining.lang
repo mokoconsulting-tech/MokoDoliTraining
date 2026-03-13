@@ -5,14 +5,130 @@
 ; DEFGROUP: MokoDoliTraining.Lang
 ; INGROUP:  MokoDoliTraining
 ; REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
-; PATH:     /langs/en_US/mokodolitraining.lang
+; PATH:     /src/langs/en_US/mokodolitraining.lang
 ; VERSION:  01.00.00
-; BRIEF:    English language strings for MokoDoliTraining module.
+; BRIEF:    Complete English language strings for MokoDoliTraining module.
 
+; Module
 MokoDoliTrainingDescription = Demo and training dataset manager for Dolibarr v23+
-SeedTrainingData = Seed Training Data
-ResetTrainingData = Reset Training Data
+MokoConsulting = Moko Consulting
+
+; Navigation tabs
+TabSetup = Setup
+TabBackups = Backups
+TabAuditLog = Audit Log
+
+; Page titles
+PageTitleSetup = MokoDoliTraining - Setup
+PageTitleBackups = MokoDoliTraining - Backup Manager
+PageTitleLogs = MokoDoliTraining - Audit Log
+
+; Status
+StatusSeeded = Seeded
+StatusNotSeeded = Not Seeded
+StatusLocked = Locked (operation in progress)
+StatusOk = OK
+StatusError = Error
+StatusPartial = Partial
+StatusUnknown = Unknown
+
+; Dashboard labels
+LabelLastSeeded = Last Seeded
+LabelLastReset = Last Reset
+LabelRollbackBackup = Rollback Backup
+LabelSnapshotBackup = Snapshot Backup
+LabelTracked = Tracked
+LabelTables = Tables
+LabelRows = Rows
+LabelNone = None
+LabelNotAvailable = N/A
+
+; Action buttons
+ActionInstall = Install Training Records
+ActionResetSnapshot = Reset to Snapshot
+ActionRollback = Rollback to Pre-Install State
+ActionVerify = Verify Integrity
+ActionDelete = Delete
+ActionDownload = Download
+ActionRestoreThis = Restore This Backup
+ActionRunCheck = Run Integrity Check
+ActionPurgeLogs = Purge Old Logs
+ActionSaveSettings = Save Settings
+ActionPurgeType = Purge by Type
+
+; Confirm dialogs
+ConfirmInstall = Create rollback backup, seed all training data, then create snapshot. Continue?
+ConfirmResetSnapshot = Delete all training rows and restore from the latest snapshot. Continue?
+ConfirmRollback = Delete all training rows and restore the pre-training state from the rollback backup. This fully undoes the Install. Continue?
+ConfirmDeleteBackup = Permanently delete this backup file? This cannot be undone.
+ConfirmRestoreBackup = Delete all training rows and restore from this specific backup? Continue?
+ConfirmPurgeLogs = Delete all audit log entries older than the configured retention period? Continue?
+
+; Backup manager
+BackupHistory = Backup History
+BackupFile = File
+BackupType = Type
+BackupTimestamp = Timestamp
+BackupSize = Size
+BackupChecksum = SHA-256
+BackupIntegrity = Integrity
+BackupActions = Actions
+BackupTypeRollback = Rollback
+BackupTypeSnapshot = Snapshot
+BackupTypeUnknown = Unknown
+BackupNoneYet = No backups found. Run Install to create rollback and snapshot backups.
+BackupVerifyOk = Integrity verified - checksum matches.
+BackupVerifyFail = Integrity check FAILED - file may be corrupted or tampered.
+BackupDeleteOk = Backup deleted.
+BackupDeleteFail = Failed to delete backup.
+BackupRestoreOk = Backup restored successfully.
+BackupRestoreFail = Restore failed - see errors below.
+BackupDownloadFail = Backup file not found.
+BackupLockWait = Another operation is in progress. Please wait and try again.
+
+; Retention settings
+SettingsTitle = Module Settings
+SettingMaxBackups = Maximum backups per type
+SettingMaxBackupsHelp = Oldest backups are automatically deleted when this limit is exceeded (minimum: 2).
+SettingLogRetention = Audit log retention (days)
+SettingLogRetentionHelp = Log entries older than this are removed by the purge action and cron job.
+SettingAutoVerify = Auto-verify backups on restore
+SettingAutoVerifyHelp = Always run integrity check before restoring a backup file.
+
+; Manifest
 ManifestTitle = Row Manifest
-ManifestDescription = All rowids inserted by mokotraining.sql, tracked per table for safe reset.
-ConfirmSeed = Load all training data? Existing rows will be updated via ON DUPLICATE KEY.
-ConfirmReset = Delete ALL training data rows? This cannot be undone.
+ManifestTable = Table
+ManifestRowCount = Rows
+ManifestRowIds = Rowids
+ManifestEmpty = Manifest not found or empty. Ensure sql/manifest.json exists.
+
+; Audit log
+LogAction = Action
+LogUser = User
+LogDate = Date
+LogStatus = Status
+LogRows = Rows
+LogStatements = Statements
+LogDuration = Duration (ms)
+LogBackupFile = Backup File
+LogErrors = Errors
+LogNote = Note
+LogEmpty = No audit log entries found.
+LogPurgedOk = %d old log entries purged.
+LogStatsTitle = Operation Summary
+
+; Cron
+CronBackupRotationLabel = MokoDoliTraining - Backup rotation and log purge
+CronBackupRotationDesc = Enforces backup retention limits and purges old audit log entries on schedule.
+
+; Result messages
+ResultInstallOk = Training records installed successfully.
+ResultInstallFail = Install completed with errors - see details below.
+ResultRollbackCreated = Rollback backup created: %s (%d rows).
+ResultSnapshotCreated = Snapshot backup created: %s (%d rows).
+ResultSeedOk = Seed complete - %d statements executed.
+ResultResetOk = Training rows deleted - %d statements executed.
+ResultRestoreOk = Restore complete - %d statements executed.
+ResultSettingsSaved = Settings saved.
+ResultIntegrityOk = Integrity verified for %s.
+ResultIntegrityFail = Integrity check failed for %s: %s
