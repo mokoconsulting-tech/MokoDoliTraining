@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/cron/MokoDoliTrainingCron.class.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Scheduled job: enforce backup retention and purge old audit logs.
  */
 
@@ -58,7 +58,7 @@ class MokoDoliTrainingCron
 
 		$t0     = hrtime(true);
 		$reset  = $backup->runReset();
-		$res    = $backup->restoreFromFile($snapshot);
+		$res    = $backup->restoreById($snapshot);
 		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
 		$errors = array_merge($reset['errors'] ?? [], $res['errors'] ?? []);
 
@@ -71,7 +71,7 @@ class MokoDoliTrainingCron
 			status:       $status,
 			rows_affected: $res['ok'] ?? 0,
 			duration_ms:  $ms,
-			backup_file:  $snapshot,
+			backup_file:  'rowid:' . $snapshot,
 			errors:       $errors,
 			entity:       $entity
 		);

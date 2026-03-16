@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/logs.php
- * VERSION:  01.02.00
+ * VERSION:  development
  * BRIEF:    Audit log viewer with filter, stats, and purge controls.
  */
 
@@ -22,7 +22,7 @@ if (!$res) die('Include of main fails');
 require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
 dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 
-if (!$user->admin) accessforbidden();
+if (!mokodolitraining_has_perm($user, 'manage')) accessforbidden();
 
 $langs->load('mokodolitraining@mokodolitraining');
 $action = GETPOST('action', 'aZ09');

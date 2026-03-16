@@ -6,11 +6,11 @@
 ; INGROUP:  MokoDoliTraining
 ; REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 ; PATH:     /src/langs/en_US/mokodolitraining.lang
-; VERSION:  01.00.00
+; VERSION:  development
 ; BRIEF:    Complete English language strings for MokoDoliTraining module.
 
 ; Module
-MokoDoliTrainingDescription = Demo and training dataset manager for Dolibarr v23+
+MokoDoliTrainingDescription = Demo and training dataset manager for Dolibarr v23+. Seed realistic data in Training or Demo mode, take snapshots, restore in seconds, and run guided tour exercises across all major modules.
 MokoConsulting = Moko Consulting
 
 ; Navigation tabs
@@ -44,8 +44,17 @@ LabelRows = Rows
 LabelNone = None
 LabelNotAvailable = N/A
 
+; Seed mode
+SeedModeLabel         = Mode
+SeedModeTraining      = Training
+SeedModeDemo          = Demo
+SeedModeTrainingFull  = Training (trainees + role groups)
+SeedModeDemoFull      = Demo (business personas + departments)
+SeedModeTrainingDesc  = Seeds trainee accounts (trainee01-06, trainer) assigned to training role groups (Basic, Sales, Marketing, Design & Dev). Ideal for classroom sessions and guided exercises.
+SeedModeDemoDesc      = Seeds realistic business personas (alice.martin, bob.chen, etc.) assigned to department groups (Management, Sales Dept, Marketing Dept, Engineering). Ideal for product demos and prospect walkthroughs.
+
 ; Action buttons
-ActionInstall = Install Training Records
+ActionInstall = Install Records
 ActionResetSnapshot = Reset to Snapshot
 ActionRollback = Rollback to Pre-Install State
 ActionVerify = Verify Integrity
@@ -58,14 +67,16 @@ ActionSaveSettings = Save Settings
 ActionPurgeType = Purge by Type
 
 ; Confirm dialogs
-ConfirmInstall = Create rollback backup, seed all training data, then create snapshot. Continue?
-ConfirmResetSnapshot = Delete all training rows and restore from the latest snapshot. Continue?
-ConfirmRollback = Delete all training rows and restore the pre-training state from the rollback backup. This fully undoes the Install. Continue?
+ConfirmInstall = Create rollback backup, seed all data in the selected mode, then create snapshot. Continue?
+ConfirmResetSnapshot = Delete all seeded rows and restore from the latest snapshot. Continue?
+ConfirmRollback = Delete all seeded rows and restore the pre-install state from the rollback backup. This fully undoes the Install. Continue?
 ConfirmDeleteBackup = Permanently delete this backup file? This cannot be undone.
 ConfirmRestoreBackup = Delete all training rows and restore from this specific backup? Continue?
 ConfirmPurgeLogs = Delete all audit log entries older than the configured retention period? Continue?
 
 ; Backup manager
+BackupRef = Reference
+BackupRows = SQL Rows
 BackupHistory = Backup History
 BackupFile = File
 BackupType = Type
@@ -123,10 +134,10 @@ CronBackupRotationLabel = MokoDoliTraining - Backup rotation and log purge
 CronBackupRotationDesc = Enforces backup retention limits and purges old audit log entries on schedule.
 
 ; Result messages
-ResultInstallOk = Training records installed successfully.
-ResultInstallFail = Install completed with errors - see details below.
-ResultRollbackCreated = Rollback backup created: %s (%d rows).
-ResultSnapshotCreated = Snapshot backup created: %s (%d rows).
+ResultInstallOk = Records installed successfully.
+ResultInstallFail = Install completed with errors — see details below.
+ResultRollbackCreated = Rollback backup created (rowid %d, %d statements).
+ResultSnapshotCreated = Snapshot backup created (rowid %d, %d rows).
 ResultSeedOk = Seed complete - %d statements executed.
 ResultResetOk = Training rows deleted - %d statements executed.
 ResultRestoreOk = Restore complete - %d statements executed.
@@ -157,6 +168,18 @@ DataManifestSummary = Manifest tracks
 DataRowBar = Distribution
 ManifestEmpty = Manifest not found. Ensure sql/manifest.json exists.
 
+; Permissions (shown in Dolibarr user/group rights editor)
+PermRead   = View training module dashboard and dataset information
+PermReset  = Reset training data to the latest snapshot
+PermManage = Full management: install, backup, restore, view logs
+PermTeach  = Trainer access: manage own classes and enroll/unenroll trainees
+
+; Trainer reset page
+TrainerResetTitle = Training Data Reset
+TrainerResetDesc = Reset the training dataset to its clean snapshot state. All trainee changes will be discarded.
+TrainerNotSeeded = Training data is not currently installed. Contact an administrator to run the initial install.
+TrainerNoSnapshot = No snapshot backup found. Contact an administrator to run Install first.
+
 ; Dashboard labels
 DashDatasetStatus = Dataset Status
 DashTrackedRows = Tracked Records
@@ -169,3 +192,145 @@ DashRollback = Rollback
 DashSnapshot = Snapshot
 DashRecentActivity = Recent Activity
 DashViewAllLogs = View full audit log
+
+; ── Training Classes tab ──────────────────────────────────────────────────────
+TabClasses = Classes
+PageTitleClasses = MokoDoliTraining - Training Classes
+
+; Class field labels
+ClassRef = Class ID
+ClassLabel = Class Name
+ClassDates = Dates
+ClassTrainer = Trainer
+ClassUsergroup = Assign Usergroup
+ClassUsergroupHelp = Group permissions assigned to enrolled trainees
+ClassMaxTrainees = Max Trainees
+ClassMaxHelp = 0 = unlimited
+ClassStatus = Status
+ClassTrainees = Enrolled Trainees
+ClassEnrollDate = Enrolled On
+ClassUserStatus = Account / Enrollment
+ClassEnrolledBy = Enrolled By
+ClassActions = Actions
+ClassNone = No training classes yet. Click "New Class" to create one.
+ClassNotFound = Class not found.
+ClassNoTrainees = No trainees enrolled yet.
+ClassNoUsersToEnroll = All existing Dolibarr users are already enrolled in this class.
+ClassEnrollUser = Enroll a Trainee
+BackToList = Back to list
+ClassNew = New Class
+
+; Class status badges
+ClassStatusDraft = Draft
+ClassStatusActive = Active
+ClassStatusClosed = Closed
+
+; Enrollment status badges
+EnrollActive = Active
+EnrollSuspended = Suspended
+EnrollCompleted = Completed
+
+; User account badges
+UserActive = Active
+UserSuspended = Suspended
+
+; Action buttons
+ClassActionActivate = Reactivate Class
+ClassActionClose = Close Class
+Enroll = Enroll
+Unenroll = Remove
+
+; Confirm dialogs
+ConfirmCloseClass = Close this class and suspend all trainees with no other active session?
+ConfirmDeleteClass = Permanently delete this class and all enrollment records?
+ConfirmUnenroll = Remove this trainee from the class and revoke their group membership?
+
+; Success / error messages
+ClassCreated = Training class created.
+ClassCreateFailed = Failed to create training class.
+ClassUpdated = Training class updated.
+ClassUpdateFailed = Failed to update training class.
+ClassDeleted = Training class deleted.
+ClassDeleteFailed = Failed to delete training class.
+ClassActivated = Class activated — %s account(s) re-enabled.
+ClassActivateFailed = Failed to activate class.
+ClassClosed = Class closed — %s account(s) suspended, %s skipped (enrolled elsewhere).
+ClassCloseFailed = Failed to close class.
+EnrollOk = Trainee enrolled successfully.
+UnenrollOk = Trainee removed from class.
+
+; Validation errors (server-side, returned from MokoDoliTrainingClass::validate())
+ClassErrRefRequired   = Class ID is required.
+ClassErrLabelRequired = Class Name is required.
+ClassErrRefTooLong    = Class ID must be 30 characters or fewer.
+ClassErrEndBeforeStart = End date must be on or after start date.
+ClassErrRefDuplicate  = This Class ID already exists. Please choose a different one.
+
+; Export
+ActionExportCsv = Export Roster (CSV)
+ExportRosterFilename = roster_%s.csv
+
+; Pagination
+ClassTotalCount = classes found
+
+; Audit log action labels (extend existing ACTIONS map in MokoDoliTrainingAudit)
+AuditClassCreate   = Class Created
+AuditClassUpdate   = Class Updated
+AuditClassDelete   = Class Deleted
+AuditClassActivate = Class Activated
+AuditClassClose    = Class Closed
+AuditEnroll        = Trainee Enrolled
+AuditUnenroll      = Trainee Removed
+AuditTraineeCreate = Trainee Account Created
+
+; ── Exercises tab ─────────────────────────────────────────────────────────────
+TabExercises            = Exercises
+PageTitleExercises      = MokoDoliTraining - Exercises
+ExerciseStarting        = Starting exercise…
+ExerciseStart           = Start Exercise
+ExerciseStartTrainer    = Demo as Trainer
+ExerciseTrainerDesc     = All exercises are shown below. Start a demo walk-through for your class, or launch any exercise in trainer mode to see step-by-step notes alongside each instruction.
+ExerciseTraineeDesc     = These exercises are matched to your training group. Click "Start Exercise" to begin a guided walkthrough. The tour will highlight the relevant areas of Dolibarr at each step.
+ExerciseNoneForGroup    = No exercises are available for your current training group. Contact your instructor.
+ExerciseClassSection    = Class Exercises
+ExerciseClassDesc       = Exercises for this class based on its assigned group.
+ExerciseNoGroup         = This class has no assigned usergroup — exercises cannot be determined. Edit the class and assign a training group (Basic, Sales, Marketing, or Design & Dev).
+
+; Training role groups (seeded by T2.5 — used in class usergroup dropdown)
+TrainingGroupBasic      = Basic
+TrainingGroupSales      = Sales
+TrainingGroupMarketing  = Marketing
+TrainingGroupDesignDev  = Design & Dev
+TrainingGroupNone       = (no group)
+TrainingGroupHelp       = Trainees enrolled in this class are added to the selected group automatically.
+
+; Demo department groups (seeded in demo mode — IDs 74-77)
+DemoGroupManagement     = Management
+DemoGroupSalesDept      = Sales Dept
+DemoGroupMarketing      = Marketing Dept
+DemoGroupEngineering    = Engineering
+
+; ── Trainee account creation ───────────────────────────────────────────────────
+TraineeCreateTitle          = Create Trainee Account
+TraineeCreateDesc           = Create a new Dolibarr account for a trainee and enroll them in this class.
+TraineeLogin                = Username (login)
+TraineePassword             = Password
+TraineeFirstname            = First Name
+TraineeLastname             = Last Name
+TraineeEmail                = Email
+TraineeCreate               = Create & Enroll
+TraineeCreated              = Trainee account created and enrolled successfully.
+TraineeCreateFailed         = Failed to create trainee account.
+TraineeErrLoginRequired     = Username is required.
+TraineeErrPasswordRequired  = Password is required.
+TraineeErrLoginDuplicate    = This username is already taken. Please choose a different one.
+
+; Trainee username log (shown on class detail page)
+TraineeTrackTitle           = Username Log
+TraineeSetBy                = Set By
+TraineeSetDate              = Date
+TraineeSource               = Source
+TraineeSourceLabel          = Note
+TraineeSourceModule         = Via Module
+TraineeSourceExternal       = External
+TraineeSourceExternalNote   = This account was created outside the training module UI — verify it is intentional.
