@@ -234,7 +234,7 @@ class MokoDoliTrainingSeed
 			$id_list = implode(',', array_map('intval', $ids));
 			$sql     = "DELETE FROM `{$tbl}` WHERE `{$pk}` IN ({$id_list})";
 			if ($this->db->query($sql) !== false) {
-				$ok += $this->db->affected_rows($sql);
+				$ok += $this->db->affected_rows();
 			} else {
 				$errors[] = "Delete {$tbl}: " . $this->db->lasterror();
 			}
@@ -249,7 +249,7 @@ class MokoDoliTrainingSeed
 			$id_list = implode(',', array_map('intval', $ids));
 			$sql     = "DELETE FROM `{$tbl}` WHERE `{$pk}` IN ({$id_list})";
 			if ($this->db->query($sql) !== false) {
-				$ok += $this->db->affected_rows($sql);
+				$ok += $this->db->affected_rows();
 			} else {
 				$errors[] = "Delete {$tbl}: " . $this->db->lasterror();
 			}
