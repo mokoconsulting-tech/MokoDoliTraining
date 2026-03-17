@@ -37,6 +37,10 @@ Trainers can click **Demo as Trainer** to start the same exercise with facilitat
 
 ## Training Accounts
 
+The accounts available depend on the seed mode chosen at install time. See [demo-mode.md](demo-mode.md) for full details on selecting and switching modes.
+
+### Training Mode (default)
+
 Seven dedicated training accounts are pre-loaded. Each is assigned to a group reflecting a real team role.
 
 **Default password for each login is identical to the username** (e.g. `trainee01` / `trainee01`). Do not change passwords unless instructed.
@@ -50,6 +54,22 @@ Seven dedicated training accounts are pre-loaded. Each is assigned to a group re
 | trainee05 | Basic | Duplicate for paired exercises | Group 70 exercises |
 | trainee06 | Sales | Duplicate for paired exercises | Group 71 exercises |
 | trainer | Admin | Full access | Facilitator — all groups |
+
+### Demo Mode
+
+Seven business persona accounts are seeded instead of trainee accounts. Exercises work identically — demo groups are resolved to equivalent training groups internally.
+
+**Default password for all demo logins: `Demo1234!`**
+
+| Login | Display Name | Department Group | Exercise Access |
+|-------|-------------|-----------------|----------------|
+| alice.martin | Alice Martin | Management | Basic (group 70) |
+| bob.chen | Bob Chen | Sales Dept | Sales (group 71) |
+| claire.dupont | Claire Dupont | Sales Dept | Sales (group 71) |
+| david.miller | David Miller | Marketing Dept | Marketing (group 72) |
+| emma.jones | Emma Jones | Marketing Dept | Marketing (group 72) |
+| frank.nguyen | Frank Nguyen | Engineering | Design & Dev (group 73) |
+| grace.kim | Grace Kim | Engineering | Design & Dev (group 73) |
 
 ---
 
@@ -936,9 +956,9 @@ Log in as **trainer** (Admin).
 | Environment | MokoDoliTraining demo data |
 | Owner | Moko Consulting |
 | Path | /docs/guide/training-exercises.md |
-| VERSION | development |
+| VERSION | 01.00.00 |
 | Status | Active |
-| Last Reviewed | 2026-03-15 |
+| Last Reviewed | 2026-03-16 |
 
 ## Revision History
 
@@ -946,3 +966,4 @@ Log in as **trainer** (Admin).
 |---|---|---|
 | 2026-03-13 | jmiller | Initial incorporation from mokokcrm-training-exercises.md v1.1.0 |
 | 2026-03-15 | claude | Restructured by group and exercise ID; added all 26 tour exercises with step tables; added new workflow categories 7–12 |
+| 2026-03-16 | claude | Expanded to 36 exercises (basic_05–08, sales_06–10, marketing_05–08, devdesign_06–10); added demo mode note and accounts table |
