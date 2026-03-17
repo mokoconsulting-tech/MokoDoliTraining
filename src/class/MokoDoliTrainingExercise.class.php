@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingExercise.class.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Exercise catalog and group-based exercise resolver.
  *           Each exercise maps to one training group (70-73) and defines
  *           step-by-step walkthrough instructions for the tour engine.

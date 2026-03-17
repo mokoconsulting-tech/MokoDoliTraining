@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/cron/MokoDoliTrainingCron.class.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Scheduled job: enforce backup retention and purge old audit logs.
  */
 

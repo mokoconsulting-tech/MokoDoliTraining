@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.API
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/api/module-class.md
-VERSION:  development
+VERSION:  01.00.00
 BRIEF:    API reference for modMokoDoliTraining class.
 -->
 

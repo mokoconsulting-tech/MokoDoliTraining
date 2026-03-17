@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/core/triggers/interface_99_modMokoDoliTraining_MokoDoliTrainingTrigger.class.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Auto-tracks every record created while training data is seeded.
  *           Also logs USER_SETPASSWORD / USER_MODIFY / USER_DELETE safety notices.
  * NOTE:     Priority 99 ensures this fires last, after all core triggers.

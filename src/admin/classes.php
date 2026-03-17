@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/classes.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Training class manager: create sessions, enroll trainees into existing
  *           Dolibarr accounts, assign usergroup permissions, mass-suspend on close.
  *

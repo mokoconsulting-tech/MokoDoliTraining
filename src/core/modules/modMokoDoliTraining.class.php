@@ -18,7 +18,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/core/modules/modMokoDoliTraining.class.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Dolibarr module descriptor for MokoDoliTraining.
  * NOTE:     Module ID 185068. Registers cron, triggers, and 8 constants.
  */

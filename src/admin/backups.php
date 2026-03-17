@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/backups.php
- * VERSION:  development
+ * VERSION:  01.00.00
  * BRIEF:    Backup manager: list, verify integrity, restore from DB backup, delete.
  */
 

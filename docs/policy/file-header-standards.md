@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Policy
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/policy/file-header-standards.md
-VERSION:  development
+VERSION:  01.00.00
 BRIEF:    MokoStandards file header requirements for MokoDoliTraining.
 -->
 

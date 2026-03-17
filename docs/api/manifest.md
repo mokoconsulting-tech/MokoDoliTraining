@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.API
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/api/manifest.md
-VERSION:  development
+VERSION:  01.00.00
 BRIEF:    Schema and usage reference for manifest.json.
 -->
 

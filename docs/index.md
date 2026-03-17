@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs
 INGROUP:  MokoDoliTraining
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/index.md
-VERSION:  development
+VERSION:  01.00.00
 BRIEF:    Documentation index for MokoDoliTraining.
 -->
 
