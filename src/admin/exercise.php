@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/exercise.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Exercise launcher page. Trainees see exercises for their training
  *           group. Trainers (teach|manage) see all groups and can launch any
  *           exercise in normal or trainer-notes mode.

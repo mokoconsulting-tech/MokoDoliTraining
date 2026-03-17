@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingClass.class.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Training class (session) manager.
  *           Handles class CRUD, trainee enrollment, usergroup assignment,
  *           and mass suspend/reactivate when a session closes.

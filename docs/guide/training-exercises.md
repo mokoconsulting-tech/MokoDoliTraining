@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/training-exercises.md
-VERSION:  01.00.00
+VERSION:  development
 BRIEF:    Guided tour exercise catalog for MokoDoliTraining. Divided by training group.
           Each section maps to the MokoDoliTrainingExercise::catalog() exercise IDs.
 -->
@@ -956,7 +956,7 @@ Log in as **trainer** (Admin).
 | Environment | MokoDoliTraining demo data |
 | Owner | Moko Consulting |
 | Path | /docs/guide/training-exercises.md |
-| VERSION | 01.00.00 |
+| VERSION | development |
 | Status | Active |
 | Last Reviewed | 2026-03-16 |
 

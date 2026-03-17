@@ -5,7 +5,7 @@
  * DEFGROUP: MokoDoliTraining.Tour
  * INGROUP:  MokoDoliTraining
  * PATH:     /src/css/mokodolitraining-tour.css
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Styles for the MokoDoliTraining step-by-step walkthrough tour.
  *           Uses high z-index values to layer over Dolibarr's own modals.
  *           All selectors are prefixed with #mdt- or .mdt- to avoid conflicts.

@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/demo-mode.md
-VERSION:  01.00.00
+VERSION:  development
 BRIEF:    Explains Training mode vs Demo mode: personas, groups, switching, and exercise compatibility.
 -->
 
@@ -131,7 +131,7 @@ Demo mode IDs (users 70–76, groups 74–77, rights 110–126) are tracked in t
 | Audience | Module administrators, trainers, sales engineers |
 | Owner | Moko Consulting |
 | Path | /docs/guide/demo-mode.md |
-| VERSION | 01.00.00 |
+| VERSION | development |
 | Status | Active |
 | Last Reviewed | 2026-03-16 |
 

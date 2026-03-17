@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/training-classes.md
-VERSION:  01.00.00
+VERSION:  development
 BRIEF:    Training Classes — creating classes, enrolling trainees, managing rosters, and exporting.
 -->
 
@@ -176,7 +176,7 @@ In **demo mode**, department groups (74–77) map to their equivalent training g
 | Audience | Training facilitators, HR administrators |
 | Owner | Moko Consulting |
 | Path | /docs/guide/training-classes.md |
-| VERSION | 01.00.00 |
+| VERSION | development |
 | Status | Active |
 | Last Reviewed | 2026-03-16 |
 

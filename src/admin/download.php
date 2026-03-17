@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/download.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Secure backup download handler. Streams SQL content from DB by rowid.
  */
 

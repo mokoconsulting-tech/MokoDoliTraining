@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingSeed.class.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Training data seeder: inserts training rows, tracks IDs in
  *           llx_mokodolitraining_manifest, and provides programmatic reset.
  *

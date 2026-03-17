@@ -6,7 +6,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/js/mokodolitraining-tour.js
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Step-by-step tour engine for MokoDoliTraining exercises.
  *           State is persisted in localStorage under key 'mdt_tour'.
  *           No external dependencies. Zero-cost no-op when no tour is active.
