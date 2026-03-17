@@ -405,32 +405,36 @@ INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) 
 ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`tms`=NOW()
 SQL, $errors);
 
-		$this->exec(<<<'SQL'
-INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
-('MAIN_MODULE_SOCIETE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_PRODUCT',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_PROPALE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_PROJET',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_FACTURE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_CONTRAT',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_FICHEINTER',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_BANQUE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_CATEGORIE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_AGENDA',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_EXPORT',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_IMPORT',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_NOTIFICATION',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_WORKFLOW',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_COMMANDE',1,'1','chaine',0,NULL,NOW()),
-('MAIN_MODULE_CLICKTODIAL',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_DON',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_MAILING',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_MULTICURRENCY',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_OPENSURVEY',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_MOKOCRM',1,'0','chaine',0,'DEV disabled',NOW()),
-('MAIN_MODULE_MOKODOLITOOLS',1,'0','chaine',0,'DEV disabled',NOW())
-ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`tms`=NOW()
-SQL, $errors);
+		// Activate modules via activateModule() so each module's init() runs:
+		// creates tables, inserts default dictionaries, registers triggers, etc.
+		// Raw SQL inserts of MAIN_MODULE_XXX=1 skip all of that.
+		dol_include_once('/core/lib/admin.lib.php');
+		$modules_to_activate = [
+			'modSociete',
+			'modProduct',
+			'modPropale',
+			'modProjet',
+			'modFacture',
+			'modContrat',
+			'modFicheinter',
+			'modBanque',
+			'modCategorie',
+			'modAgenda',
+			'modExport',
+			'modImport',
+			'modNotification',
+			'modWorkflow',
+			'modCommande',
+			'modTicket',
+			'modExpenseReport',
+			'modFournisseur',
+		];
+		foreach ($modules_to_activate as $modname) {
+			$res = activateModule($modname, 1, 1);
+			if ($res > 0) {
+				$errors[] = "activateModule({$modname}) returned {$res}";
+			}
+		}
 
 		$this->exec(<<<'SQL'
 INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
