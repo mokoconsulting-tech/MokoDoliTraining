@@ -19,7 +19,9 @@
       "WebFetch(domain:api.github.com)",
       "WebSearch",
       "WebFetch(domain:wiki.dolibarr.org)",
-      "WebFetch(domain:www.dolibarr.org)"
+      "WebFetch(domain:www.dolibarr.org)",
+      "Bash(find:*)",
+      "Skill(commit-commands:commit-push-pr)"
     ]
   }
 }

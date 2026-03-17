@@ -319,7 +319,7 @@ class MokoDoliTrainingSeed
 	{
 		$errors = [];
 		$e      = $entity;
-		$this->seedConstants($e, $errors);
+		$this->seedConstants($e, $mode, $errors);
 		$this->seedBaseUsers($e, $errors);
 		$this->seedBaseThirdParties($e, $errors);
 		$this->seedBaseContacts($e, $errors);
@@ -364,19 +364,37 @@ class MokoDoliTrainingSeed
 
 	// ── S1–S5: Company constants ──────────────────────────────────────────────
 
-	private function seedConstants(int $e, array &$errors): void
+	private function seedConstants(int $e, string $mode, array &$errors): void
 	{
-		$this->exec(<<<'SQL'
-INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
-('MAIN_INFO_SOCIETE_NOM',1,'Demo Consulting Co.','chaine',1,NULL,NOW()),
+		// My Company fields: INSERT IGNORE so existing values are preserved.
+		// If the admin has already set their company name/address, we do not
+		// overwrite it — we only fill in the field if it is blank.
+		$mode_label = ($mode === 'demo') ? 'Dolibarr Demo' : 'Training Co.';
+		$mode_email = ($mode === 'demo') ? 'demo@dolibarr.example' : 'training@dolibarr.example';
+		$mode_web   = ($mode === 'demo') ? 'https://demo.dolibarr.example' : 'https://training.dolibarr.example';
+
+		$nom     = $this->db->escape($mode_label);
+		$mail    = $this->db->escape($mode_email);
+		$web     = $this->db->escape($mode_web);
+
+		$this->exec(<<<SQL
+INSERT IGNORE INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
+('MAIN_INFO_SOCIETE_NOM',1,'{$nom}','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_ADDRESS',1,'123 Demo Street','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_TOWN',1,'Demo City','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_STATE',1,'TN','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_ZIP',1,'37040','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_COUNTRY',1,'840','chaine',1,NULL,NOW()),
 ('MAIN_INFO_SOCIETE_COUNTRY_CODE',1,'US','chaine',1,NULL,NOW()),
-('MAIN_INFO_SOCIETE_MAIL',1,'admin@democonsulting.example','chaine',1,NULL,NOW()),
-('MAIN_INFO_SOCIETE_WEB',1,'https://democonsulting.example','chaine',1,NULL,NOW()),
+('MAIN_INFO_SOCIETE_MAIL',1,'{$mail}','chaine',1,NULL,NOW()),
+('MAIN_INFO_SOCIETE_WEB',1,'{$web}','chaine',1,NULL,NOW())
+SQL, $errors);
+
+		// Non-company constants: INSERT IGNORE so admin-configured values are
+		// never overwritten. These seed starter values for a fresh installation
+		// but respect any deliberate admin choices on an existing system.
+		$this->exec(<<<'SQL'
+INSERT IGNORE INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
 ('MAIN_APPLICATION_TITLE',1,'MokoCRM','chaine',1,NULL,NOW()),
 ('MAIN_LANG_DEFAULT',1,'en_US','chaine',0,NULL,NOW()),
 ('MAIN_CURRENCY_DEFAULT',1,'USD','chaine',1,NULL,NOW()),
@@ -388,11 +406,10 @@ INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) 
 ('MAIN_START_WEEK',1,'0','chaine',0,NULL,NOW()),
 ('MAIN_USE_PHP_SETLOCALE',1,'0','chaine',0,NULL,NOW()),
 ('MAIN_MODULE_TAXNONE',1,'1','chaine',0,NULL,NOW())
-ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`tms`=NOW()
 SQL, $errors);
 
 		$this->exec(<<<'SQL'
-INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
+INSERT IGNORE INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
 ('SOCIETE_CODECLIENT_ADDON',1,'mod_codeclient_leopard','chaine',0,NULL,NOW()),
 ('PROPOSAL_ADDON',1,'mod_propale_marbre','chaine',0,NULL,NOW()),
 ('INVOICE_ADDON',1,'mod_facture_terre','chaine',0,NULL,NOW()),
@@ -402,7 +419,6 @@ INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) 
 ('PROPALE_ADDON_PDF',1,'crabe','chaine',0,NULL,NOW()),
 ('FACTURE_ADDON_PDF',1,'crabe','chaine',0,NULL,NOW()),
 ('CONTRACT_ADDON_PDF',1,'contract','chaine',0,NULL,NOW())
-ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`tms`=NOW()
 SQL, $errors);
 
 		// Activate modules via activateModule() so each module's init() runs:
@@ -436,14 +452,31 @@ SQL, $errors);
 			}
 		}
 
-		$this->exec(<<<'SQL'
+		// Set email intercept for the seeded environment.
+		// Priority: admin-configured catchall → existing from-address → safe fallback.
+		// Never reads MAIN_MAIL_SENDTO_FORCETO as a source — that may already be set
+		// by a third party and would create a circular dependency.
+		$catchall = $this->db->escape(
+			getDolGlobalString('MOKODOLITRAINING_MAIL_CATCHALL')
+				?: getDolGlobalString('MAIN_MAIL_EMAIL_FROM')
+				?: 'demo@example.com'
+		);
+		$note = 'Managed by MokoDoliTraining — safe demo/training intercept';
+		$this->exec(<<<SQL
 INSERT INTO `llx_const` (`name`,`entity`,`value`,`type`,`visible`,`note`,`tms`) VALUES
-('MAIN_MAIL_SENDTO_FORCETO',1,'dev@mokoconsulting.tech','chaine',0,'DEV — remove in prod',NOW()),
-('MAIN_MAIL_EMAIL_FROM',1,'dev@mokoconsulting.tech','chaine',0,'DEV — remove in prod',NOW()),
-('MAIN_MAIL_ERRORS_TO',1,'dev@mokoconsulting.tech','chaine',0,'DEV — remove in prod',NOW()),
-('MAIN_MAIL_REPLYTO',1,'dev@mokoconsulting.tech','chaine',0,'DEV — remove in prod',NOW()),
-('MAILING_DISABLE_SENDINGBYEMAIL',1,'1','chaine',0,'DEV — remove in prod',NOW())
-ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`tms`=NOW()
+('MAIN_MAIL_SENDTO_FORCETO',1,'{$catchall}','chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_EMAIL_FROM',    1,'{$catchall}','chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_ERRORS_TO',     1,'{$catchall}','chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_REPLYTO',       1,'{$catchall}','chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_TRANSPORT',     1,'mail',       'chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_SMTP_SERVER',   1,'',           'chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_SMTP_PORT',     1,'',           'chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_SMTP_ID',       1,'',           'chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_SMTP_PASS',     1,'',           'chaine',0,'{$note}',NOW()),
+('MAIN_MAIL_SMTP_AUTH',     1,'0',          'chaine',0,'{$note}',NOW()),
+('MAILING_DISABLE_SENDINGBYEMAIL',1,'1',    'chaine',0,'{$note}',NOW()),
+('MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE',1,'1','chaine',0,'{$note}',NOW())
+ON DUPLICATE KEY UPDATE `value`=VALUES(`value`),`note`=VALUES(`note`),`tms`=NOW()
 SQL, $errors);
 
 		$this->exec(<<<'SQL'

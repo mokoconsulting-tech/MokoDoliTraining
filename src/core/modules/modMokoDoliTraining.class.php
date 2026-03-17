@@ -205,6 +205,65 @@ class modMokoDoliTraining extends DolibarrModules
 	}
 
 	/**
+	 * Set or clear the email intercept for a seeded training/demo environment.
+	 *
+	 * Called by seedConstants() when seed data is installed (sets the intercept)
+	 * and by remove() when the module is uninstalled (clears it — but only if
+	 * MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE is set, so admin-configured mail
+	 * settings are never deleted if seeding was never run).
+	 *
+	 * When active:
+	 * - All outgoing email is redirected to MOKODOLITRAINING_MAIL_CATCHALL.
+	 * - Transport is forced to PHP mail() — SMTP is blocked.
+	 * - Stored SMTP credentials are cleared.
+	 */
+	private function _setEmailIntercept(bool $clear = false): void
+	{
+		global $conf;
+		require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
+
+		$entity  = (int) $conf->entity;
+		$catchall = getDolGlobalString('MOKODOLITRAINING_MAIL_CATCHALL')
+			?: getDolGlobalString('MAIN_MAIL_EMAIL_FROM')
+			?: 'demo@example.com';
+
+		if ($clear) {
+			// On uninstall/seed-rollback: remove the intercept constants this module set.
+			// We do NOT delete SMTP credentials — those were deliberately cleared;
+			// the admin must re-enter them intentionally.
+			dolibarr_del_const($this->db, 'MAIN_MAIL_SENDTO_FORCETO',                $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_TRANSPORT',                     $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_EMAIL_FROM',                    $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_ERRORS_TO',                     $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_REPLYTO',                       $entity);
+			dolibarr_del_const($this->db, 'MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE', $entity);
+			return;
+		}
+
+		$note = 'Managed by MokoDoliTraining — safe demo/training intercept';
+
+		// Redirect all mail to catchall address
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SENDTO_FORCETO', $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_EMAIL_FROM',     $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_ERRORS_TO',      $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_REPLYTO',        $catchall,  'chaine', 0, $note, $entity);
+
+		// Force PHP mail() — block SMTP entirely
+		dolibarr_set_const($this->db, 'MAIN_MAIL_TRANSPORT',      'mail',     'chaine', 0, $note, $entity);
+
+		// Clear any SMTP credentials that may have been stored
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_SERVER',    '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_PORT',      '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_ID',        '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_PASS',      '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_AUTH',      '0',        'chaine', 0, $note, $entity);
+
+		// Flag that this module owns the intercept — used by remove() to decide
+		// whether to clean up (avoids deleting admin-configured mail settings).
+		dolibarr_set_const($this->db, 'MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE', '1', 'chaine', 0, $note, $entity);
+	}
+
+	/**
 	 * Take an automatic rollback snapshot on install so the database state
 	 * is captured before any training data is seeded.
 	 */
@@ -255,10 +314,16 @@ class modMokoDoliTraining extends DolibarrModules
 			$backup->releaseLock();
 		}
 
-		// 2. Drop module log table
+		// 2. Remove email intercept only if this module set it (seeding was run).
+		// Avoids deleting MAIN_MAIL_* constants that the admin configured themselves.
+		if (getDolGlobalString('MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE') === '1') {
+			$this->_setEmailIntercept(true);
+		}
+
+		// 3. Drop module log table
 		$this->db->query('DROP TABLE IF EXISTS ' . MAIN_DB_PREFIX . 'mokodolitraining_log');
 
-		// 3. Standard Dolibarr uninstall (removes constants, menus, rights)
+		// 4. Standard Dolibarr uninstall (removes constants, menus, rights)
 		return $this->_remove([], $options);
 	}
 
