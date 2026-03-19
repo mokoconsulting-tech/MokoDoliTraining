@@ -106,6 +106,9 @@ SettingLogRetention = Audit log retention (days)
 SettingLogRetentionHelp = Log entries older than this are removed by the purge action and cron job.
 SettingAutoVerify = Auto-verify backups on restore
 SettingAutoVerifyHelp = Always run integrity check before restoring a backup file.
+SettingDemoCred = Demo credentials (conf.php)
+SettingDemoCredHelp = Set in conf/conf.php as: $dolibarr_main_demo='login,password' — first part is the trainee login prefix (e.g. "student" → student01…student06), second part is the password. Each account's password equals its full login when using the default.
+SettingDemoCredNotSet = not configured — defaults will be used (trainee01…trainee06 / trainer, password = login)
 
 ; Manifest
 ManifestTitle = Row Manifest

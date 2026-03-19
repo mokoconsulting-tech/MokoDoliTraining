@@ -370,6 +370,26 @@ printf(
 	. '<td class="opacitymedium">%s</td></tr>',
 	$langs->trans('SettingLogRetention'), $log_ret, $langs->trans('SettingLogRetentionHelp')
 );
+
+// Show $dolibarr_main_demo status only when in demo mode — has no effect in training mode
+if ($user->admin && $seed_mode === 'demo') {
+	global $dolibarr_main_demo;
+	$demo_conf_set = !empty($dolibarr_main_demo);
+	$demo_conf_val = $demo_conf_set
+		? '<code>' . dol_htmlentities($dolibarr_main_demo) . '</code>'
+		: '<span class="opacitymedium">' . $langs->trans('SettingDemoCredNotSet') . '</span>';
+	printf(
+		'<tr class="oddeven">'
+		. '<td class="titlefield">%s %s</td>'
+		. '<td>%s</td>'
+		. '<td class="opacitymedium">%s</td></tr>',
+		$langs->trans('SettingDemoCred'),
+		img_picto($langs->trans('SuperAdminOnly'), 'lock', 'class="pictofixedwidth opacitymedium"'),
+		$demo_conf_val,
+		$langs->trans('SettingDemoCredHelp')
+	);
+}
+
 print '</table>';
 endif; // can_manage settings form
 

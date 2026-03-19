@@ -1211,21 +1211,37 @@ SQL, $errors);
 
 	private function seedTrainingUsers(int $e, array &$errors): void
 	{
-		$this->exec(<<<'SQL'
-INSERT INTO `llx_user`
-  (`rowid`,`entity`,`admin`,`statut`,`employee`,`datec`,`tms`,
-   `login`,`lastname`,`firstname`,`job`,`email`,
-   `pass_crypted`,`fk_user_creat`)
-VALUES
-(60,1,0,1,0,NOW(),NOW(),'trainee01','One',  'Trainee','Training Participant','trainee01@democonsulting.example','$2y$10$Adrv.L2zvVfyfPXcWzU.h.ioQ.jiOEYLLpIIn9NtdgGe8W/vTj24y',1),
-(61,1,0,1,0,NOW(),NOW(),'trainee02','Two',  'Trainee','Training Participant','trainee02@democonsulting.example','$2y$10$HnX7Yq2bp.YskkfWMKxdhO.bqEPkIEx.YBWj2wkJTzoFji69Ajt7O',1),
-(62,1,0,1,0,NOW(),NOW(),'trainee03','Three','Trainee','Training Participant','trainee03@democonsulting.example','$2y$10$tAPiWooPXgw7d9DV2n5MhOSv.mqCf6vuZiLlSoVfKjDjPzOiFsyVC',1),
-(63,1,0,1,0,NOW(),NOW(),'trainee04','Four', 'Trainee','Training Participant','trainee04@democonsulting.example','$2y$10$Vbr12L131wcVYAwMaIdQ6O8FSNoaJKzlonH/ShH94XHBTNoJndQ8m',1),
-(64,1,0,1,0,NOW(),NOW(),'trainee05','Five', 'Trainee','Training Participant','trainee05@democonsulting.example','$2y$10$0reNZHKf8XCDmnjvo/H/3eyVr118A8KdheJCR5EjH.ltHgoL0qhka',1),
-(65,1,0,1,0,NOW(),NOW(),'trainee06','Six',  'Trainee','Training Participant','trainee06@democonsulting.example','$2y$10$8twoT4W09pnov.QxHijGFuNpnXFLe/F2OVNKPLnnGVN/5cs7lTs.2',1),
-(66,1,1,1,0,NOW(),NOW(),'trainer',  'Trainer','Demo',  'Training Facilitator','trainer@democonsulting.example', '$2y$10$MJ0rDIJSXBqFzmVnjhi8u.a64OEN7iGBWWqpquKCtFUVTN6DIzg.a',1)
-ON DUPLICATE KEY UPDATE `tms`=NOW()
-SQL, $errors);
+		// Training mode: fixed prefix 'trainee', password = full login.
+		// $dolibarr_main_demo is demo-mode only and is not read here.
+		// Hashes are computed fresh per install so each deployment gets unique salts.
+		$pfx  = 'trainee';
+		$opts = ['cost' => 10];
+
+		$nums   = ['01' => [60, 'One'], '02' => [61, 'Two'],   '03' => [62, 'Three'],
+		           '04' => [63, 'Four'], '05' => [64, 'Five'], '06' => [65, 'Six']];
+		$rows   = [];
+		$domain = 'democonsulting.example';
+
+		foreach ($nums as $n => [$id, $lastname]) {
+			$login = $this->db->escape($pfx . $n);
+			$email = $this->db->escape($pfx . $n . '@' . $domain);
+			$hash  = $this->db->escape(password_hash($pfx . $n, PASSWORD_BCRYPT, $opts));
+			$rows[] = "({$id},1,0,1,0,NOW(),NOW(),'{$login}','{$lastname}','Trainee','Training Participant','{$email}','{$hash}',1)";
+		}
+
+		// Trainer account: login = 'trainer', password = 'trainer'
+		$trainer_hash = $this->db->escape(password_hash('trainer', PASSWORD_BCRYPT, $opts));
+		$rows[] = "(66,1,1,1,0,NOW(),NOW(),'trainer','Trainer','Demo','Training Facilitator','trainer@{$domain}','{$trainer_hash}',1)";
+
+		$values = implode(",\n", $rows);
+		$this->exec(
+			"INSERT INTO `llx_user`"
+			. " (`rowid`,`entity`,`admin`,`statut`,`employee`,`datec`,`tms`,"
+			. "  `login`,`lastname`,`firstname`,`job`,`email`,`pass_crypted`,`fk_user_creat`)"
+			. " VALUES\n{$values}"
+			. " ON DUPLICATE KEY UPDATE `login`=VALUES(`login`),`pass_crypted`=VALUES(`pass_crypted`),`tms`=NOW()",
+			$errors
+		);
 
 		$this->exec(<<<'SQL'
 INSERT INTO `llx_user_extrafields` (`rowid`,`tms`,`fk_object`) VALUES
@@ -1293,10 +1309,20 @@ SQL, $errors);
 
 	private function seedDemoUsers(int $e, array &$errors): void
 	{
+		// Password from conf.php $dolibarr_main_demo second field, or 'Demo1234!' default.
+		global $dolibarr_main_demo;
+		$pass_raw = 'Demo1234!';
+		if (!empty($dolibarr_main_demo)) {
+			$parts = explode(',', $dolibarr_main_demo, 2);
+			if (isset($parts[1]) && $parts[1] !== '') {
+				$pass_raw = trim($parts[1]);
+			}
+		}
+
 		// Compute bcrypt hashes at seed time — each call produces a unique salt
 		$pw = [];
 		for ($i = 0; $i < 7; $i++) {
-			$pw[$i] = $this->db->escape(password_hash('Demo1234!', PASSWORD_BCRYPT, ['cost' => 10]));
+			$pw[$i] = $this->db->escape(password_hash($pass_raw, PASSWORD_BCRYPT, ['cost' => 10]));
 		}
 
 		$this->exec(
