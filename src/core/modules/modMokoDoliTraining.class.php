@@ -18,7 +18,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/core/modules/modMokoDoliTraining.class.php
- * VERSION:  01.00.00
+ * VERSION:  development
  * BRIEF:    Dolibarr module descriptor for MokoDoliTraining.
  * NOTE:     Module ID 185068. Registers cron, triggers, and 8 constants.
  */
@@ -46,7 +46,10 @@ class modMokoDoliTraining extends DolibarrModules
 		$this->editor_name = 'Moko Consulting';
 		$this->editor_url = 'https://mokoconsulting.tech';
 		$this->editor_squarred_logo = 'favicon_256.png@' . $this->rights_class;
-		$this->version              = 'development';
+		$this->version              = '1.0.0';
+		$this->requires_dolibarr    = '23.0.0';
+		$this->compatible           = '24.0.0';
+		$this->url_last_version     = 'https://raw.githubusercontent.com/mokoconsulting-tech/MokoDoliTraining/main/module_version.txt';
 		$this->const_name           = 'MAIN_MODULE_' . strtoupper($this->name);
 		$this->picto                = 'technic';
 
@@ -54,15 +57,34 @@ class modMokoDoliTraining extends DolibarrModules
 			'triggers'         => 1,
 			'login'            => 0,
 			'substitutions'    => 0,
-			'menus'            => 0,
+			'menus'            => 1,
 			'tpl'              => 0,
 			'barcode'          => 0,
 			'models'           => 0,
 			'theme'            => 0,
-			'css'              => [],
-			'js'               => [],
+			// Tour engine — loaded on every page; zero-cost no-op when no tour active
+			'css'              => ['/mokodolitraining/css/mokodolitraining-tour.css'],
+			'js'               => ['/mokodolitraining/js/mokodolitraining-tour.js'],
 			'hooks'            => [],
 			'moduleforexternal'=> 0,
+		];
+
+		// ── Module menu ──────────────────────────────────────────────────────
+		// "Exercises" top-menu entry — visible to all authenticated users with
+		// read permission so trainees can launch walkthroughs directly.
+		$this->menu[0] = [
+			'fk_menu'  => 0,
+			'type'     => 'top',
+			'titre'    => $langs->trans('TabExercises'),
+			'mainmenu' => 'mokodolitraining',
+			'leftmenu' => 'mokodolitraining_exercises',
+			'url'      => '/mokodolitraining/admin/exercise.php',
+			'langs'    => 'mokodolitraining@mokodolitraining',
+			'position' => 101,
+			'enabled'  => '$conf->mokodolitraining->enabled',
+			'perms'    => '$user->hasRight("mokodolitraining","read") || !empty($user->admin)',
+			'target'   => '',
+			'user'     => 2, // 2 = non-admin users (admins always see it)
 		];
 
 		$this->config_page_url = ['setup.php@mokodolitraining'];
@@ -71,28 +93,52 @@ class modMokoDoliTraining extends DolibarrModules
 		$this->requiredby      = [];
 		$this->conflictwith    = [];
 		$this->langfiles       = ['mokodolitraining@mokodolitraining'];
-		$this->rights          = [];
 		$this->tabs            = [];
+
+		// ── Tables ───────────────────────────────────────────────────────────
+		// Registers this module's tables for Dolibarr's DB diagnostic tools.
+		$this->tables = [
+			'mokodolitraining_log',
+			'mokodolitraining_manifest',
+			'mokodolitraining_class',
+			'mokodolitraining_class_user',
+			'mokodolitraining_user_track',
+		];
+
+		// ── Rights ───────────────────────────────────────────────────────────
+		// IDs: module_numero(185068) * 100 + index → 18506801..18506804
+		// Accessed as $user->hasRight('mokodolitraining', 'read|reset|manage|teach')
+		$this->rights = [
+			// [unique_id, label, type, default, right_key]
+			[18506801, $langs->transnoentities('PermRead'),   'r', 0, 'read'],
+			[18506802, $langs->transnoentities('PermReset'),  'w', 0, 'reset'],
+			[18506803, $langs->transnoentities('PermManage'), 'w', 0, 'manage'],
+			[18506804, $langs->transnoentities('PermTeach'),  'w', 0, 'teach'],
+		];
 
 		// ── Constants ────────────────────────────────────────────────────────
 		$this->const = [
 			// Dataset state
-			['MOKODOLITRAINING_VERSION',       'chaine', '1.0.0', 'Installed dataset version',                 0, 'current'],
-			['MOKODOLITRAINING_SEEDED',        'chaine', '0',     '1 when training data is currently loaded',  0, 'current'],
-			['MOKODOLITRAINING_SEED_DATE',     'chaine', '',      'Timestamp of last successful seed',         0, 'current'],
-			['MOKODOLITRAINING_RESET_DATE',    'chaine', '',      'Timestamp of last reset or rollback',       0, 'current'],
-			// Backup paths
-			['MOKODOLITRAINING_ROLLBACK_FILE', 'chaine', '',      'Absolute path to latest rollback backup',   0, 'current'],
-			['MOKODOLITRAINING_SNAPSHOT_FILE', 'chaine', '',      'Absolute path to latest snapshot backup',   0, 'current'],
+			['MOKODOLITRAINING_VERSION',        'chaine', '1.0.0',    'Installed dataset version',                   0, 'current'],
+			['MOKODOLITRAINING_SEEDED',         'chaine', '0',        '1 when dataset is currently loaded',          0, 'current'],
+			['MOKODOLITRAINING_SEED_MODE',      'chaine', 'training', 'Active seed mode: training or demo',          0, 'current'],
+			['MOKODOLITRAINING_SEED_DATE',      'chaine', '',         'Timestamp of last successful seed',           0, 'current'],
+			['MOKODOLITRAINING_RESET_DATE',     'chaine', '',         'Timestamp of last reset or rollback',         0, 'current'],
+			// Backup rowids (DB-stored, no filesystem paths)
+			['MOKODOLITRAINING_ROLLBACK_ROWID', 'chaine', '',         'DB rowid of latest rollback backup',          0, 'current'],
+			['MOKODOLITRAINING_SNAPSHOT_ROWID', 'chaine', '',         'DB rowid of latest snapshot backup',          0, 'current'],
 			// Operational config
-			['MOKODOLITRAINING_MAX_BACKUPS',   'chaine', '10',    'Max backup files retained per label type',  0, 'current'],
-			['MOKODOLITRAINING_LOG_RETENTION', 'chaine', '90',    'Audit log retention in days',               0, 'current'],
+			['MOKODOLITRAINING_MAX_BACKUPS',    'chaine', '10',       'Max backup records retained per label type',  0, 'current'],
+			['MOKODOLITRAINING_LOG_RETENTION',  'chaine', '90',       'Audit log retention in days',                 0, 'current'],
+			// T18 dynamic seed IDs (stored at seed time, used by resyncManifest)
+			['MOKODOLITRAINING_T18_ORDER_IDS',  'chaine', '',         'JSON array of seeded llx_commande rowids',    0, 'current'],
+			['MOKODOLITRAINING_T18_DET_IDS',    'chaine', '',         'JSON array of seeded llx_commandedet rowids', 0, 'current'],
 		];
 
 		// ── Cron ─────────────────────────────────────────────────────────────
 		$this->cronjobs = [
 			[
-				'label'         => 'MokoDoliTraining - Reset to training snapshot',
+				'label'         => 'MokoDoliTraining - Reset to snapshot',
 				'jobtype'       => 'method',
 				'class'         => '/mokodolitraining/cron/MokoDoliTrainingCron.class.php',
 				'objectname'    => 'MokoDoliTrainingCron',
@@ -159,6 +205,65 @@ class modMokoDoliTraining extends DolibarrModules
 	}
 
 	/**
+	 * Set or clear the email intercept for a seeded training/demo environment.
+	 *
+	 * Called by seedConstants() when seed data is installed (sets the intercept)
+	 * and by remove() when the module is uninstalled (clears it — but only if
+	 * MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE is set, so admin-configured mail
+	 * settings are never deleted if seeding was never run).
+	 *
+	 * When active:
+	 * - All outgoing email is redirected to MOKODOLITRAINING_MAIL_CATCHALL.
+	 * - Transport is forced to PHP mail() — SMTP is blocked.
+	 * - Stored SMTP credentials are cleared.
+	 */
+	private function _setEmailIntercept(bool $clear = false): void
+	{
+		global $conf;
+		require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
+
+		$entity  = (int) $conf->entity;
+		$catchall = getDolGlobalString('MOKODOLITRAINING_MAIL_CATCHALL')
+			?: getDolGlobalString('MAIN_MAIL_EMAIL_FROM')
+			?: 'demo@example.com';
+
+		if ($clear) {
+			// On uninstall/seed-rollback: remove the intercept constants this module set.
+			// We do NOT delete SMTP credentials — those were deliberately cleared;
+			// the admin must re-enter them intentionally.
+			dolibarr_del_const($this->db, 'MAIN_MAIL_SENDTO_FORCETO',                $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_TRANSPORT',                     $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_EMAIL_FROM',                    $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_ERRORS_TO',                     $entity);
+			dolibarr_del_const($this->db, 'MAIN_MAIL_REPLYTO',                       $entity);
+			dolibarr_del_const($this->db, 'MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE', $entity);
+			return;
+		}
+
+		$note = 'Managed by MokoDoliTraining — safe demo/training intercept';
+
+		// Redirect all mail to catchall address
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SENDTO_FORCETO', $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_EMAIL_FROM',     $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_ERRORS_TO',      $catchall,  'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_REPLYTO',        $catchall,  'chaine', 0, $note, $entity);
+
+		// Force PHP mail() — block SMTP entirely
+		dolibarr_set_const($this->db, 'MAIN_MAIL_TRANSPORT',      'mail',     'chaine', 0, $note, $entity);
+
+		// Clear any SMTP credentials that may have been stored
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_SERVER',    '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_PORT',      '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_ID',        '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_PASS',      '',         'chaine', 0, $note, $entity);
+		dolibarr_set_const($this->db, 'MAIN_MAIL_SMTP_AUTH',      '0',        'chaine', 0, $note, $entity);
+
+		// Flag that this module owns the intercept — used by remove() to decide
+		// whether to clean up (avoids deleting admin-configured mail settings).
+		dolibarr_set_const($this->db, 'MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE', '1', 'chaine', 0, $note, $entity);
+	}
+
+	/**
 	 * Take an automatic rollback snapshot on install so the database state
 	 * is captured before any training data is seeded.
 	 */
@@ -176,11 +281,11 @@ class modMokoDoliTraining extends DolibarrModules
 		if ($backup->isLocked() || !$backup->acquireLock()) return;
 
 		$rb = $backup->createFullBackup('rollback');
-		if (!empty($rb['path'])) {
-			dolibarr_set_const($this->db, 'MOKODOLITRAINING_ROLLBACK_FILE', $rb['path'], 'chaine', 0, '', (int) $conf->entity);
+		if (!empty($rb['rowid'])) {
+			dolibarr_set_const($this->db, 'MOKODOLITRAINING_ROLLBACK_ROWID', (string) $rb['rowid'], 'chaine', 0, '', (int) $conf->entity);
 		}
 		$audit->log((int) ($user->id ?? 0), 'auto_snapshot', empty($rb['errors']) ? 'ok' : 'partial',
-			$rb['rows'] ?? 0, 0, 0, $rb['path'] ?? '', $rb['checksum'] ?? '', $rb['errors'] ?? [],
+			$rb['rows'] ?? 0, 0, 0, 'rowid:' . ($rb['rowid'] ?? 0), $rb['checksum'] ?? '', $rb['errors'] ?? [],
 			entity: (int) $conf->entity);
 
 		$backup->releaseLock();
@@ -200,19 +305,25 @@ class modMokoDoliTraining extends DolibarrModules
 		$entity = isset($conf) ? (int) $conf->entity : 1;
 
 		// 1. Restore rollback backup to return DB to pre-training state
-		$rb_path = $backup->getLatest('rollback') ?: getDolGlobalString('MOKODOLITRAINING_ROLLBACK_FILE');
-		if ($rb_path && file_exists($rb_path) && $backup->acquireLock()) {
+		$rb_rowid = $backup->getLatest('rollback') ?: (int) getDolGlobalString('MOKODOLITRAINING_ROLLBACK_ROWID');
+		if ($rb_rowid && $backup->acquireLock()) {
 			$backup->runReset();
-			$res = $backup->restoreFromFile($rb_path);
+			$res = $backup->restoreById($rb_rowid);
 			$audit->log($uid, 'uninstall_rollback', empty($res['errors']) ? 'ok' : 'partial',
-				$res['ok'], 0, 0, $rb_path, errors: $res['errors'], entity: $entity);
+				$res['ok'], 0, 0, 'rowid:' . $rb_rowid, errors: $res['errors'], entity: $entity);
 			$backup->releaseLock();
 		}
 
-		// 2. Drop module log table
+		// 2. Remove email intercept only if this module set it (seeding was run).
+		// Avoids deleting MAIN_MAIL_* constants that the admin configured themselves.
+		if (getDolGlobalString('MOKODOLITRAINING_EMAIL_INTERCEPT_ACTIVE') === '1') {
+			$this->_setEmailIntercept(true);
+		}
+
+		// 3. Drop module log table
 		$this->db->query('DROP TABLE IF EXISTS ' . MAIN_DB_PREFIX . 'mokodolitraining_log');
 
-		// 3. Standard Dolibarr uninstall (removes constants, menus, rights)
+		// 4. Standard Dolibarr uninstall (removes constants, menus, rights)
 		return $this->_remove([], $options);
 	}
 

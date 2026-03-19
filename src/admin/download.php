@@ -8,8 +8,8 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/download.php
- * VERSION:  01.00.00
- * BRIEF:    Secure backup file download handler. Admin-only. No directory traversal.
+ * VERSION:  development
+ * BRIEF:    Secure backup download handler. Streams SQL content from DB by rowid.
  */
 
 $res = 0;
@@ -19,38 +19,38 @@ if (!$res && file_exists('../../../main.inc.php'))    $res = @include '../../../
 if (!$res && file_exists('../../../../main.inc.php')) $res = @include '../../../../main.inc.php';
 if (!$res) die('Include of main fails');
 
+dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 dol_include_once('/mokodolitraining/class/MokoDoliTrainingBackup.class.php');
 dol_include_once('/mokodolitraining/class/MokoDoliTrainingAudit.class.php');
 
-if (!$user->admin) {
+if (!mokodolitraining_has_perm($user, 'manage')) {
 	accessforbidden();
 }
 
 // ── Input validation ──────────────────────────────────────────────────────────
-$raw_name = GETPOST('filename', 'alpha');
-$filename = basename($raw_name); // strip any path components
+$rowid = GETPOSTINT('rowid');
 
-if (!$filename || !preg_match('/^(rollback|snapshot)_\d{8}_\d{6}\.php$/', $filename)) {
+if (!$rowid || $rowid <= 0) {
 	http_response_code(400);
-	print 'Invalid filename.';
+	print 'Invalid rowid.';
 	exit;
 }
 
-$max     = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
-$backup  = new MokoDoliTrainingBackup($db, $max);
-$path    = $backup->getBackupByName($filename);
+$max    = max(2, (int) (getDolGlobalString('MOKODOLITRAINING_MAX_BACKUPS') ?: 10));
+$backup = new MokoDoliTrainingBackup($db, $max);
+$row    = $backup->loadRow($rowid);
 
-if (!$path || !file_exists($path)) {
+if (!$row || empty($row['content'])) {
 	http_response_code(404);
-	print 'Backup file not found.';
+	print 'Backup not found.';
 	exit;
 }
 
 // ── Integrity check before serving ────────────────────────────────────────────
-$integrity = $backup->verifyIntegrity($path);
+$integrity = $backup->verifyIntegrity($rowid);
 if (!$integrity['ok']) {
 	http_response_code(409);
-	print 'Integrity check failed: ' . htmlspecialchars($integrity['reason']) . '. File will not be served.';
+	print 'Integrity check failed: ' . htmlspecialchars($integrity['reason']) . '. Content will not be served.';
 	exit;
 }
 
@@ -60,26 +60,22 @@ $audit->log(
 	fk_user: (int) $user->id,
 	action:  'backup_download',
 	status:  'ok',
-	backup_file: $path,
-	note:    'Download: ' . $filename,
+	note:    'Download rowid: ' . $rowid . ' ref: ' . $row['ref'],
 	entity:  (int) $conf->entity
 );
 
-// ── Stream file ────────────────────────────────────────────────────────────────
-// Strip PHP guard header line, deliver clean SQL to the browser
-$raw   = file_get_contents($path);
-$clean = preg_replace('/^<\?php[^\n]*\?>\s*/s', '', $raw, 1);
-// Rename download to .sql so the browser/editor handles it correctly
-$dl_name = preg_replace('/\.php$/', '.sql', $filename);
+// ── Stream content ────────────────────────────────────────────────────────────
+$content = $row['content'];
+$dl_name = 'backup_' . preg_replace('/[^a-z0-9_\-]/i', '_', $row['ref']) . '.sql';
 
 header('Content-Description: File Transfer');
 header('Content-Type: application/octet-stream');
 header('Content-Disposition: attachment; filename="' . $dl_name . '"');
-header('Content-Length: ' . mb_strlen($clean, '8bit'));
+header('Content-Length: ' . mb_strlen($content, '8bit'));
 header('Cache-Control: no-cache, must-revalidate');
 header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
 
 $db->close();
-print $clean;
+print $content;
 exit;

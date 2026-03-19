@@ -8,9 +8,23 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/lib/mokodolitraining.lib.php
- * VERSION:  01.01.00
+ * VERSION:  development
  * BRIEF:    Shared helpers: tab builder, formatters, class loader, constants accessor.
  */
+
+/**
+ * Check whether the current user has a specific MokoDoliTraining permission
+ * OR is a Dolibarr superadmin (who implicitly has all rights).
+ *
+ * @param object $user  Dolibarr $user global
+ * @param string $perm  Permission key: 'read', 'reset', or 'manage'
+ * @return bool
+ */
+function mokodolitraining_has_perm($user, string $perm): bool
+{
+	if (!empty($user->admin)) return true;
+	return (bool) $user->hasRight('mokodolitraining', $perm);
+}
 
 /**
  * Build and return the Dolibarr tab head array for MokoDoliTraining admin pages.
@@ -41,6 +55,16 @@ function mokodolitraining_admin_tabs(): array
 			0 => dol_buildpath('/mokodolitraining/admin/logs.php', 1),
 			1 => $langs->trans('TabLogs'),
 			2 => 'logs',
+		],
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/classes.php', 1),
+			1 => $langs->trans('TabClasses'),
+			2 => 'classes',
+		],
+		[
+			0 => dol_buildpath('/mokodolitraining/admin/exercise.php', 1),
+			1 => $langs->trans('TabExercises'),
+			2 => 'exercises',
 		],
 	];
 }
@@ -104,20 +128,28 @@ function mokodolitraining_const(string $name, $default = '')
 }
 
 /**
- * Load and return the training dataset manifest tables array.
+ * Load and return the training dataset manifest from the DB manifest table.
  *
- * @return array
+ * @return array<string, int[]>  table_name → [record_ids]
  */
 function mokodolitraining_get_manifest(): array
 {
-	$path = dirname(__DIR__) . '/sql/manifest.json';
-	if (!file_exists($path)) return [];
-	$raw = json_decode(file_get_contents($path), true);
-	return is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
+	global $db, $conf;
+	if (empty($db)) return [];
+	$entity = (int) ($conf->entity ?? 1);
+	$mtbl   = MAIN_DB_PREFIX . 'mokodolitraining_manifest';
+	$sql    = "SELECT table_name, record_id FROM `{$mtbl}` WHERE entity = {$entity} ORDER BY table_name, record_id";
+	$res    = $db->query($sql);
+	if (!$res) return [];
+	$out = [];
+	while ($row = $db->fetch_object($res)) {
+		$out[$row->table_name][] = (int) $row->record_id;
+	}
+	return $out;
 }
 
 /**
- * Return table and row count summary from the manifest.
+ * Return table and row count summary from the DB manifest.
  *
  * @return array{tables: int, rows: int}
  */
@@ -128,21 +160,39 @@ function mokodolitraining_get_manifest_summary(): array
 }
 
 /**
- * Return absolute path to the seed SQL file.
+ * HTML badge for a training class status integer.
+ * 0=Draft  1=Active  2=Closed
  *
+ * @param int    $status
+ * @param object $langs  Dolibarr $langs global
  * @return string
  */
-function mokodolitraining_get_seed_sql_path(): string
+function mokodolitraining_badge_class_status(int $status, $langs): string
 {
-	return dirname(__DIR__) . '/sql/mokotraining.sql';
+	$map = [
+		0 => ['badge-status0', 'ClassStatusDraft'],
+		1 => ['badge-status4', 'ClassStatusActive'],
+		2 => ['badge-status8', 'ClassStatusClosed'],
+	];
+	[$cls, $key] = $map[$status] ?? ['badge-status0', 'ClassStatusDraft'];
+	return '<span class="badge ' . $cls . '">' . $langs->trans($key) . '</span>';
 }
 
 /**
- * Return absolute path to the reset SQL file.
+ * HTML badge for a trainee enrollment status integer.
+ * 0=Suspended  1=Active  2=Completed
  *
+ * @param int    $status
+ * @param object $langs  Dolibarr $langs global
  * @return string
  */
-function mokodolitraining_get_reset_sql_path(): string
+function mokodolitraining_badge_enroll_status(int $status, $langs): string
 {
-	return dirname(__DIR__) . '/sql/mokotraining_reset.sql';
+	$map = [
+		0 => ['badge-status8', 'EnrollSuspended'],
+		1 => ['badge-status4', 'EnrollActive'],
+		2 => ['badge-status1', 'EnrollCompleted'],
+	];
+	[$cls, $key] = $map[$status] ?? ['badge-status0', 'EnrollActive'];
+	return '<span class="badge ' . $cls . '">' . $langs->trans($key) . '</span>';
 }

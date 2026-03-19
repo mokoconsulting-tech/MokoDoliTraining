@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git branch:*)",
+      "Bash(gh pr:*)",
+      "Bash(git checkout:*)",
+      "Bash(git:*)",
+      "Bash(cp:*)",
+      "Bash(echo:*)",
+      "Bash(cd:*)",
+      "Bash(python3:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(/tmp/check_audit.txt:*)",
+      "Read(//tmp/**)",
+      "Bash(powercfg:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebSearch",
+      "WebFetch(domain:wiki.dolibarr.org)",
+      "WebFetch(domain:www.dolibarr.org)",
+      "Bash(find:*)",
+      "Skill(commit-commands:commit-push-pr)"
+    ]
+  }
+}
