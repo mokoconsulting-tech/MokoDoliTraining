@@ -6,6 +6,20 @@ labels: ['license-request', 'admin']
 assignees: []
 ---
 
+<!--
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2024-2026 Moko Consulting Tech
+
+File: .github/ISSUE_TEMPLATE/request-license.md
+Description: Issue template for organization software license requests
+Project: .github-private
+Author: Moko Consulting Tech
+Version: 03.02.00
+
+Revision History:
+- 2026-03-11: Added SPDX header and version to match MokoStandards 03.02.00
+-->
+
 ## License Request
 
 ### Tool Information
@@ -13,21 +27,20 @@ assignees: []
 
 **License Type Requested**: Organization Pool
 
-**Personal Purchase**:
+**Personal Purchase**: 
 - [ ] I prefer to purchase my own license ($99 USD - recommended, immediate access)
 - [ ] I prefer an organization license (1-2 business days, organization use only)
 - [ ] I have already purchased my own license (registration only for support)
 
 ### Requestor Information
-**Name**:
+**Name**: 
 **GitHub Username**: @
 **Email**: @mokoconsulting.tech
-**Team/Department**:
+**Team/Department**: 
 **Manager**: @
 
 ### Justification
 **Why do you need this license?**
-
 
 **Primary use case**:
 - [ ] Remote development (SFTP to servers)
@@ -37,7 +50,6 @@ assignees: []
 - [ ] Other (specify):
 
 **Which projects/repositories will you work on?**
-
 
 **Have you evaluated the free trial?**
 - [ ] Yes, I've used the trial and Sublime Text meets my needs
@@ -50,7 +62,7 @@ assignees: []
 
 ### Platform
 - [ ] Windows
-- [ ] macOS
+- [ ] macOS  
 - [ ] Linux (distribution: ________)
 
 ### Urgency
@@ -59,7 +71,6 @@ assignees: []
 - [ ] Low priority (when available)
 
 **If urgent, please explain why:**
-
 
 ### SFTP Plugin
 **Note**: Sublime SFTP plugin ($16 USD) is a **separate personal purchase** and is NOT provided by the organization.
@@ -87,7 +98,6 @@ assignees: []
 - [ ] Trial/Evaluation (_____ weeks)
 
 **Comments/Questions**:
-
 
 ---
 
