@@ -391,6 +391,13 @@ if ($user->admin && $seed_mode === 'demo') {
 }
 
 print '</table>';
+// Save button lives inside the settings form so inputs are submitted together
+print '<div class="tabsAction" style="margin-top:0">';
+print '<button type="submit" name="action" value="save_settings" class="butAction">'
+	. img_picto('', 'save', 'class="pictofixedwidth"')
+	. $langs->trans('ActionSaveSettings') . '</button>';
+print '</div>';
+print '</form>';
 endif; // can_manage settings form
 
 print dol_fiche_end();
@@ -401,9 +408,6 @@ print '<div class="tabsAction">';
 if ($can_manage) {
 	print '<form method="POST" action="' . $_SERVER['PHP_SELF'] . '" style="display:inline">';
 	print '<input type="hidden" name="token" value="' . newToken() . '">';
-	print '<button type="submit" name="action" value="save_settings" class="butAction">'
-		. img_picto('', 'save', 'class="pictofixedwidth"')
-		. $langs->trans('ActionSaveSettings') . '</button>';
 
 	// Mode selector — shown inline before the install button
 	printf(

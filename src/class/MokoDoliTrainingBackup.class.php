@@ -295,11 +295,11 @@ class MokoDoliTrainingBackup
 		];
 	}
 
-	public function runReset(): array
+	public function runReset(int $entity = 1): array
 	{
 		dol_include_once('/mokodolitraining/class/MokoDoliTrainingSeed.class.php');
 		$seed = new MokoDoliTrainingSeed($this->db);
-		return $seed->reset();
+		return $seed->reset($entity);
 	}
 
 	// ── Listing / lookup ──────────────────────────────────────────────────────

@@ -307,7 +307,7 @@ class modMokoDoliTraining extends DolibarrModules
 		// 1. Restore rollback backup to return DB to pre-training state
 		$rb_rowid = $backup->getLatest('rollback') ?: (int) getDolGlobalString('MOKODOLITRAINING_ROLLBACK_ROWID');
 		if ($rb_rowid && $backup->acquireLock()) {
-			$backup->runReset();
+			$backup->runReset($entity);
 			$res = $backup->restoreById($rb_rowid);
 			$audit->log($uid, 'uninstall_rollback', empty($res['errors']) ? 'ok' : 'partial',
 				$res['ok'], 0, 0, 'rowid:' . $rb_rowid, errors: $res['errors'], entity: $entity);

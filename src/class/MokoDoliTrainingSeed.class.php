@@ -289,7 +289,9 @@ class MokoDoliTrainingSeed
 	private function exec(string $sql, array &$errors): void
 	{
 		if (MAIN_DB_PREFIX !== 'llx_') {
-			$sql = str_replace('llx_', MAIN_DB_PREFIX, $sql);
+			// Only replace the prefix inside backtick-quoted identifiers so that
+			// string literal values containing 'llx_' are not corrupted.
+			$sql = preg_replace('/`llx_/', '`' . MAIN_DB_PREFIX, $sql);
 		}
 		if (!$this->db->query($sql)) {
 			$errors[] = $this->db->lasterror();
@@ -358,6 +360,19 @@ class MokoDoliTrainingSeed
 		$this->seedCategories($e, $errors);
 		$this->seedMemberships($e, $errors);
 		$this->seedMailings($e, $errors);
+
+		// ── Optional: MokoCRM module ──────────────────────────────────────────
+		// If the MokoCRM custom module is active, seed its additional data.
+		// The check uses isModEnabled() which reads $conf->modules — populated
+		// at bootstrap and entity-aware, so this is safe to call here.
+		if (isModEnabled('MokoCRM')) {
+			if ($mode === 'demo') {
+				$this->seedMokoCrmDemo($e, $errors);
+			} else {
+				$this->seedMokoCrmTraining($e, $errors);
+			}
+		}
+
 		$this->populateStaticManifest($entity);
 		return ['ok' => empty($errors) ? 1 : 0, 'errors' => $errors];
 	}
@@ -447,8 +462,9 @@ SQL, $errors);
 		];
 		foreach ($modules_to_activate as $modname) {
 			$res = activateModule($modname, 1, 1);
-			if ($res > 0) {
-				$errors[] = "activateModule({$modname}) returned {$res}";
+			// activateModule() returns an array ['nbmodules'=>…,'errors'=>[],'nbperms'=>…]
+			if (!empty($res['errors'])) {
+				$errors[] = "activateModule({$modname}): " . implode(', ', (array) $res['errors']);
 			}
 		}
 
@@ -2178,6 +2194,28 @@ VALUES
  'noreply@democonsulting.example','noreply@democonsulting.example',2,2,1)
 ON DUPLICATE KEY UPDATE `tms`=NOW()
 SQL, $errors);
+	}
+
+	// ── MokoCRM: training data ────────────────────────────────────────────────
+	//
+	// Called from seedStatic() only when isModEnabled('MokoCRM') is true.
+	// Add MokoCRM-specific rows here: custom object types, pipeline stages,
+	// lead records, activity templates, or any table prefixed with llx_mokocrm_*.
+	// Use $this->track() for every inserted row so the manifest covers them.
+
+	private function seedMokoCrmTraining(int $e, array &$errors): void
+	{
+		// TODO: insert MokoCRM training rows
+	}
+
+	// ── MokoCRM: demo data ────────────────────────────────────────────────────
+	//
+	// Demo-mode equivalent — same tables but richer, persona-driven data
+	// matching the alice.martin / bob.chen / etc. accounts (IDs 70-76).
+
+	private function seedMokoCrmDemo(int $e, array &$errors): void
+	{
+		// TODO: insert MokoCRM demo rows
 	}
 
 	// ── T18: Customer sales orders (dynamic IDs) ──────────────────────────────

@@ -65,7 +65,7 @@ if ($action === 'restore_file' && $rowid) {
 		$t0   = hrtime(true);
 		$errs = [];
 
-		$del  = $backup->runReset();
+		$del  = $backup->runReset((int) $conf->entity);
 		$errs = array_merge($errs, $del['errors']);
 
 		$res  = $backup->restoreById($rowid);

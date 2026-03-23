@@ -57,7 +57,7 @@ class MokoDoliTrainingCron
 		}
 
 		$t0     = hrtime(true);
-		$reset  = $backup->runReset();
+		$reset  = $backup->runReset($entity);
 		$res    = $backup->restoreById($snapshot);
 		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
 		$errors = array_merge($reset['errors'] ?? [], $res['errors'] ?? []);
