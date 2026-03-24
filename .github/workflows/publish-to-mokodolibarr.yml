@@ -7,10 +7,10 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/dolibarr/publish-to-mokodolibarr.yml
-# VERSION: 04.00.04
-# BRIEF: On release, copies src/ into htdocs/custom/$CUSTOM_FOLDER in mokodolibarr and opens a PR
+# VERSION: 04.00.27
+# BRIEF: On release, copies src/ into htdocs/custom/$CUSTOM_NAME in mokodolibarr and opens a PR
 #
-# Required repo variable:  CUSTOM_FOLDER — subdirectory name under htdocs/custom/ (e.g. moko-mymodule)
+# Required repo variable:  CUSTOM_NAME — subdirectory name under htdocs/custom/ (e.g. moko-mymodule)
 # Required org secret:     GH_TOKEN — must have write access to mokoconsulting-tech/mokodolibarr
 # Target repository:       mokoconsulting-tech/mokodolibarr
 
@@ -25,21 +25,21 @@ permissions:
 
 jobs:
   publish:
-    name: "Publish → mokodolibarr/htdocs/custom/${{ vars.CUSTOM_FOLDER }}"
+    name: "Publish → mokodolibarr/htdocs/custom/${{ vars.CUSTOM_NAME }}"
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate CUSTOM_FOLDER
+      - name: Validate CUSTOM_NAME
         env:
-          CUSTOM_FOLDER: ${{ vars.CUSTOM_FOLDER }}
+          CUSTOM_NAME: ${{ vars.CUSTOM_NAME }}
         run: |
-          if [ -z "$CUSTOM_FOLDER" ]; then
-            echo "❌ CUSTOM_FOLDER repository variable is not set."
+          if [ -z "$CUSTOM_NAME" ]; then
+            echo "❌ CUSTOM_NAME repository variable is not set."
             echo "   Set it to the subdirectory name under htdocs/custom/ in mokodolibarr."
             echo "   Example: moko-mymodule"
             exit 1
           fi
-          echo "✅ CUSTOM_FOLDER: ${CUSTOM_FOLDER}"
+          echo "✅ CUSTOM_NAME: ${CUSTOM_NAME}"
 
       - name: Checkout module repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,10 +60,10 @@ jobs:
       - name: Dry-run — preview files that will be published
         id: dryrun
         env:
-          CUSTOM_FOLDER: ${{ vars.CUSTOM_FOLDER }}
+          CUSTOM_NAME: ${{ vars.CUSTOM_NAME }}
           FTP_IGNORE:    ${{ vars.FTP_IGNORE }}
         run: |
-          DEST="htdocs/custom/${CUSTOM_FOLDER}"
+          DEST="htdocs/custom/${CUSTOM_NAME}"
 
           # ── Parse FTP_IGNORE patterns ─────────────────────────────────────────
           IGNORE_PATTERNS=()
@@ -166,12 +166,12 @@ jobs:
           echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
           echo "ℹ️  Release branch: ${BRANCH}"
 
-      - name: Copy src/ to htdocs/custom/${{ vars.CUSTOM_FOLDER }}
+      - name: Copy src/ to htdocs/custom/${{ vars.CUSTOM_NAME }}
         id: copy
         env:
-          CUSTOM_FOLDER: ${{ vars.CUSTOM_FOLDER }}
+          CUSTOM_NAME: ${{ vars.CUSTOM_NAME }}
         run: |
-          DEST="mokodolibarr/htdocs/custom/${CUSTOM_FOLDER}"
+          DEST="mokodolibarr/htdocs/custom/${CUSTOM_NAME}"
           mkdir -p "$DEST"
 
           # --delete removes files in dest that no longer exist in src/
@@ -208,7 +208,7 @@ jobs:
         run: |
           MODULE="${{ steps.branch.outputs.module }}"
           TAG="${{ steps.branch.outputs.tag }}"
-          CUSTOM_FOLDER="${{ vars.CUSTOM_FOLDER }}"
+          CUSTOM_NAME="${{ vars.CUSTOM_NAME }}"
           RELEASE_URL="${{ github.event.release.html_url }}"
           RELEASE_BODY="${{ github.event.release.body }}"
 
@@ -216,12 +216,12 @@ jobs:
             --repo mokoconsulting-tech/mokodolibarr \
             --head "${{ steps.branch.outputs.branch }}" \
             --base main \
-            --title "feat(${CUSTOM_FOLDER}): ${TAG}" \
+            --title "feat(${CUSTOM_NAME}): ${TAG}" \
             --body "## 📦 Module Release
 
           **Module:** \`${MODULE}\`
           **Version:** \`${TAG}\`
-          **Destination:** \`htdocs/custom/${CUSTOM_FOLDER}/\`
+          **Destination:** \`htdocs/custom/${CUSTOM_NAME}/\`
           **Source release:** ${RELEASE_URL}
 
           ### Release Notes
@@ -244,7 +244,7 @@ jobs:
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Module | \`${MODULE}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tag | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Destination | \`htdocs/custom/${{ vars.CUSTOM_FOLDER }}/\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Destination | \`htdocs/custom/${{ vars.CUSTOM_NAME }}/\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Files synced | ${{ steps.source.outputs.count }} |" >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$CHANGED" = "true" ]; then
