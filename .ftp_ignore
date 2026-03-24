@@ -1,0 +1,44 @@
+# .ftp_ignore — FTP/SFTP upload exclusion rules
+# Syntax mirrors .gitignore: blank lines and # comments are ignored,
+# * matches within a path segment, ** matches across segments, ? matches one char.
+# A leading / anchors to the upload root; a trailing / matches directories only.
+# Negation (!) is not supported.
+#
+# Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# ── Version-control metadata ──────────────────────────────────────────────────
+.git/
+.gitignore
+.gitkeep
+.gitattributes
+.gitmodules
+.tx/
+
+# ── CI / editor / tooling artefacts ──────────────────────────────────────────
+.github/
+.editorconfig
+.yamllint
+.phpcs.xml
+.phpstan.neon
+.psalm.xml
+.moko-standards
+
+# ── Dependency directories ────────────────────────────────────────────────────
+vendor/
+node_modules/
+
+# ── Build / cache / temp ──────────────────────────────────────────────────────
+build/
+dist/
+*.log
+*.tmp
+*.cache
+
+# ── Secrets & local config ────────────────────────────────────────────────────
+.env
+.env.*
+scripts/sftp-config/
+scripts/keys/
+*.ppk
+*.pem

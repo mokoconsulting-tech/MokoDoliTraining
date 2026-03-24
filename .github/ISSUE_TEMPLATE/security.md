@@ -1,127 +1,66 @@
 ---
-name: Security Vulnerability
-about: Report a security vulnerability (use private reporting if critical)
+name: Security Vulnerability Report
+about: Report a security vulnerability (use only for non-critical issues)
 title: '[SECURITY] '
-labels: ['security']
-assignees: []
----
-
-## ⚠️ Security Vulnerability Report
-
-**IMPORTANT**: For **critical vulnerabilities**, please use GitHub's [Private Vulnerability Reporting](https://github.com/mokoconsulting-tech/MokoStandards/security/advisories/new) or email security@mokoconsulting.tech directly. Do NOT create a public issue.
-
-Use this template only for **low to medium severity** issues that don't pose immediate risk.
+labels: 'security'
+assignees: ''
 
 ---
 
-## Vulnerability Summary
+<!--
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2024-2026 Moko Consulting Tech
 
-**Brief description** (without sensitive details):
+File: .github/ISSUE_TEMPLATE/security.md
+Description: Issue template for security vulnerability reports
+Project: .github-private
+Author: Moko Consulting Tech
+Version: 03.02.00
 
+Revision History:
+- 2026-01-04: Added MokoStandards compliant header with copyright, file info, and metadata
+- 2026-03-11: Version bump to 03.02.00 to match MokoStandards
+- 2024: Initial creation
+-->
 
-**Affected component**:
-- [ ] Script
-- [ ] Enterprise library
-- [ ] Workflow
-- [ ] Schema
-- [ ] Documentation
-- [ ] Other: __________
+## ⚠️ IMPORTANT: Private Disclosure Required
 
-## Severity Assessment
+**For critical security vulnerabilities, DO NOT use this template.**
+Follow the process in [SECURITY.md](../SECURITY.md) for responsible disclosure.
 
-**Severity level** (your assessment):
-- [ ] Critical (immediate exploitation possible, high impact)
-- [ ] High (exploitation likely, significant impact)
-- [ ] Medium (exploitation possible with conditions, moderate impact)
-- [ ] Low (theoretical risk, minimal impact)
+Use this template only for:
+- Security improvements
+- Non-critical security suggestions
+- Security documentation updates
 
-**CVSS Score** (if calculated): _____ / 10
+---
 
-## Affected Versions
+## Security Issue
 
-**MokoStandards version(s)**:
-- Commit/tag:
+**Severity**: 
+<!-- Low, Medium, or informational only -->
 
-**Affected platforms**:
-- [ ] All platforms
-- [ ] Windows
-- [ ] macOS
-- [ ] Linux
-- [ ] Generic repos
-- [ ] Joomla/WaaS repos
-- [ ] Dolibarr/CRM repos
+## Description
+<!-- Describe the security concern or improvement suggestion -->
 
-## Impact Analysis
+## Affected Components
+<!-- List the affected files, features, or components -->
 
-**What could an attacker do?**
+## Suggested Mitigation
+<!-- Describe how this could be addressed -->
 
+## Standards Reference
+Does this relate to security standards in [MokoStandards](https://github.com/mokoconsulting-tech/MokoStandards)?
+- [ ] SPDX license identifiers
+- [ ] Secret management
+- [ ] Dependency security
+- [ ] Access control
+- [ ] Other: [specify]
 
-**What data/systems are at risk?**
+## Additional Context
+<!-- Add any other context about the security concern -->
 
-
-**Who is affected?**
-- [ ] All organization members
-- [ ] Repository administrators
-- [ ] CI/CD pipelines
-- [ ] Specific teams (specify): __________
-
-## Steps to Reproduce
-
-**Proof of concept** (without exploit code):
-
-1.
-2.
-3.
-
-## Potential Fix
-
-**Do you have suggestions for remediation?**
-
-
-**Temporary workarounds** (if any):
-
-
-## References
-
-**Related CVEs, advisories, or security issues**:
--
--
-
-**Security best practices violated**:
--
-
-## Discovery Context
-
-**How was this discovered?**
-- [ ] Security audit
-- [ ] Code review
-- [ ] Automated scanning (tool: ______)
-- [ ] Incident response
-- [ ] User report
-- [ ] Other: __________
-
-## Additional Information
-
-**Relevant logs, configurations, or context** (sanitized):
-
-
-## Responsible Disclosure
-
-- [ ] I understand this is a public issue and should not contain sensitive details
-- [ ] I have verified this is NOT a critical vulnerability requiring private reporting
-- [ ] I have checked for existing security advisories
-- [ ] I am willing to work with maintainers on a fix (if applicable)
-- [ ] I understand security@mokoconsulting.tech is the contact for critical issues
-
-## Checklist for Maintainers
-
-**Do not edit below this line**
-
-- [ ] Severity confirmed
-- [ ] Impact assessment completed
-- [ ] Fix developed
-- [ ] Fix tested
-- [ ] Security advisory created (if needed)
-- [ ] Affected users notified
-- [ ] CVE requested (if applicable)
-- [ ] Documentation updated
+## Checklist
+- [ ] This is NOT a critical vulnerability requiring private disclosure
+- [ ] I have reviewed the SECURITY.md policy
+- [ ] I have provided sufficient detail for evaluation

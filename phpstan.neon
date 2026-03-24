@@ -1,0 +1,39 @@
+# Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# PHPStan configuration for Dolibarr module repositories.
+# Extends the base MokoStandards config and adds Dolibarr class stubs
+# so PHPStan can resolve CommonObject, DoliDB, Conf, User, etc.
+# without requiring a full Dolibarr installation.
+
+parameters:
+    level: 5
+
+    paths:
+        - src
+
+    excludePaths:
+        - vendor
+        - node_modules
+
+    # Dolibarr class stubs — resolved via the enterprise package from vendor/
+    stubFiles:
+        - vendor/mokoconsulting-tech/enterprise/templates/stubs/dolibarr.php
+
+    # Suppress errors that are structural in Dolibarr's dynamic architecture
+    ignoreErrors:
+        # Dolibarr uses dynamic properties heavily (pre-PHP 8.2 pattern)
+        - '#Access to an undefined property [A-Za-z]+::\$#'
+        # Module descriptors use magic property assignment in __construct
+        - '#Variable \$[a-z]+ might not be defined\.#'
+
+    # Common Dolibarr globals declared at script entry point
+    dynamicConstantNames:
+        - DOL_DOCUMENT_ROOT
+        - DOL_URL_ROOT
+        - DOL_VERSION
+        - MAIN_DB_PREFIX
+
+    reportUnmatchedIgnoredErrors: false
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
