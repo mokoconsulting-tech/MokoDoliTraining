@@ -1,10 +1,15 @@
 ---
 name: Question
-about: Ask a question about MokoStandards usage, features, or best practices
+about: Ask a question about usage, features, or best practices
 title: '[QUESTION] '
 labels: ['question']
 assignees: []
 ---
+
+<!--
+Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
 
 ## Question
 
@@ -21,29 +26,24 @@ assignees: []
 
 **Category**:
 - [ ] Script usage
-- [ ] Enterprise library integration
-- [ ] Schema configuration
+- [ ] Configuration
 - [ ] Workflow setup
 - [ ] Documentation interpretation
 - [ ] Best practices
-- [ ] Platform-specific (Generic/Joomla/Dolibarr)
+- [ ] Integration
 - [ ] Other: __________
 
 ## Environment (if relevant)
 
 **Your setup**:
 - Operating System:
-- Repository type: [ ] Generic [ ] Joomla/WaaS [ ] Dolibarr/CRM
-- MokoStandards version:
+- Version:
 
 ## What You've Researched
 
 **Documentation reviewed**:
 - [ ] README.md
-- [ ] Script documentation (/docs/scripts/)
-- [ ] Enterprise library docs
-- [ ] Schema documentation
-- [ ] Sublime Text setup guide
+- [ ] Project documentation
 - [ ] Other (specify): __________
 
 **Similar issues/questions found**:

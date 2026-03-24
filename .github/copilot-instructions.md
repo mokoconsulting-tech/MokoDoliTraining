@@ -1,0 +1,287 @@
+> [!IMPORTANT]
+> **🔧 AI Self-Update Required on First Use**
+>
+> This file may contain unfilled `{{TOKEN}}` placeholders. The MokoStandards bulk-sync system
+> replaces them automatically at sync time; if you can still see them, sync has not yet run for
+> this repository — or this is a brand-new repo.
+>
+> **On your very first interaction in this repository, before answering any other question:**
+>
+> 1. Check whether any `{{TOKEN}}` placeholders remain in this file.
+> 2. If they do, locate the values as described in the table below and replace every occurrence
+>    in **both** `.github/copilot-instructions.md` and `.github/CLAUDE.md`.
+> 3. After replacing all tokens, **delete this entire notice block** (from `> [!IMPORTANT]`
+>    through the closing `> ---` line) in both files.
+> 4. Tell the developer: *"I've self-updated the AI context files with this repository's
+>    values — all set."*
+>
+> | Placeholder | Where to find the value |
+> |---|---|
+> | `MokoDoliTraining` | The GitHub repository name (visible in the URL, `README.md` heading, or `git remote -v`) |
+> | `https://github.com/mokoconsulting-tech/MokoDoliTraining` | Full GitHub URL, e.g. `https://github.com/mokoconsulting-tech/<repo-name>` |
+> | `mokodolitraining` | The module name as used in Dolibarr (lowercase, e.g. `mymodule`) — from the `langs/en_US/*.lang` filename or `$this->rights_class` in the module descriptor |
+> | `MokoDoliTraining` | PascalCase module class name (e.g. `MyModule`) — from the `src/core/modules/mod*.class.php` filename |
+> | `185068` | The `$this->numero` value in `src/core/modules/mod*.class.php`; check [module-registry.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/development/crm/module-registry.md) if creating a new module |
+> | `PHP` | Primary programming language (usually `PHP`) |
+>
+> ---
+
+# MokoDoliTraining — GitHub Copilot Custom Instructions
+
+## What This Repo Is
+
+This is a **Moko Consulting MokoCRM** (Dolibarr) module repository governed by [MokoStandards](https://github.com/mokoconsulting-tech/MokoStandards). All coding standards, workflows, and policies are defined there and enforced here via bulk sync.
+
+Repository URL: https://github.com/mokoconsulting-tech/MokoDoliTraining
+Module name: **mokodolitraining**
+Module class: **MokoDoliTraining**
+Module ID: **185068**
+Platform: **Dolibarr / MokoCRM**
+
+---
+
+## Primary Language
+
+**PHP** (≥ 8.1) is the primary language for this Dolibarr module. YAML uses 2-space indentation. All other text files use tabs per `.editorconfig`.
+
+---
+
+## File Header — Always Required on New Files
+
+Every new file needs a copyright header as its first content.
+
+**PHP:**
+```php
+<?php
+/* Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+ *
+ * This file is part of a Moko Consulting project.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * FILE INFORMATION
+ * DEFGROUP: MokoDoliTraining.Module
+ * INGROUP: MokoDoliTraining
+ * REPO: https://github.com/mokoconsulting-tech/MokoDoliTraining
+ * PATH: /src/path/to/file.php
+ * VERSION: XX.YY.ZZ
+ * BRIEF: One-line description of purpose
+ */
+```
+
+**Markdown:**
+```markdown
+<!--
+Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+
+This file is part of a Moko Consulting project.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
+# FILE INFORMATION
+DEFGROUP: MokoDoliTraining.Documentation
+INGROUP: MokoDoliTraining
+REPO: https://github.com/mokoconsulting-tech/MokoDoliTraining
+PATH: /docs/file.md
+VERSION: XX.YY.ZZ
+BRIEF: One-line description
+-->
+```
+
+**YAML / Shell:** Use `#` comments with the same fields. JSON files are exempt.
+
+---
+
+## Version Management
+
+**`README.md` is the single source of truth for the repository version.**
+
+- **Bump the patch version on every PR** — increment `XX.YY.ZZ` (e.g. `01.02.03` → `01.02.04`) in `README.md` before opening the PR; the `sync-version-on-merge` workflow propagates it automatically to all badges and `FILE INFORMATION` headers on merge to `main`.
+- The `VERSION: XX.YY.ZZ` field in `README.md` governs all other version references.
+- Version format is zero-padded semver: `XX.YY.ZZ` (e.g. `01.02.03`).
+- Never hardcode a specific version in document body text — use the badge or FILE INFORMATION header only.
+
+### Dolibarr Module Version Alignment
+
+The version in `README.md` **must always match** the `$this->version` property in the main module descriptor class (`src/core/modules/modMokoDoliTraining.class.php`).
+
+```php
+// In src/core/modules/modMokoDoliTraining.class.php
+public $version = '01.02.04';  // Must match README.md version
+```
+
+---
+
+## Dolibarr Module Structure
+
+```
+MokoDoliTraining/
+├── src/                          # Module source code (deployed to Dolibarr)
+│   ├── README.md                 # End-user documentation
+│   ├── core/
+│   │   └── modules/
+│   │       └── modMokoDoliTraining.class.php   # Main module descriptor
+│   ├── langs/
+│   │   └── en_US/
+│   │       └── mokodolitraining.lang
+│   ├── sql/                      # Database schema
+│   │   ├── llx_mokodolitraining.sql
+│   │   └── llx_mokodolitraining.key.sql
+│   ├── class/                    # PHP class files
+│   └── lib/                      # Library files
+├── docs/                         # Technical documentation
+├── scripts/                      # Build and maintenance scripts
+├── tests/                        # Test suite
+├── .github/
+│   ├── workflows/
+│   ├── copilot-instructions.md   # This file
+│   └── CLAUDE.md
+├── README.md                     # Version source of truth
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── LICENSE                       # GPL-3.0-or-later
+└── Makefile                      # Build automation
+```
+
+---
+
+## Module Descriptor Class Pattern
+
+The main module descriptor (`src/core/modules/modMokoDoliTraining.class.php`) must follow this pattern:
+
+```php
+<?php
+/* … file header … */
+
+/**
+ * Description of module mokodolitraining
+ */
+class modMokoDoliTraining extends DolibarrModules
+{
+    /**
+     * Constructor
+     *
+     * @param DoliDB $db Database handler
+     */
+    public function __construct($db)
+    {
+        global $langs, $conf;
+
+        $this->db = $db;
+        $this->numero = 185068;          // Unique module ID — do not change
+        $this->rights_class = 'mokodolitraining';
+        $this->family = 'crm';
+        $this->module_position = '50';
+        $this->name = preg_replace('/^mod/i', '', get_class($this));
+        $this->description = 'Description of mokodolitraining module';
+        $this->version = 'XX.YY.ZZ';           // Must match README.md version
+        $this->const_name = 'MAIN_MODULE_' . strtoupper($this->name);
+        $this->picto = 'object_favicon_256.png@mokocrm';
+        $this->editor_name = 'Moko Consulting';
+        $this->editor_url = 'https://mokoconsulting.tech';		// Must be an external online web site
+        $this->editor_squarred_logo = 'object_favicon_256.png@mokocrm';
+    }
+}
+```
+
+**Key rules for the module descriptor:**
+- `$this->numero` is a globally unique ID registered in [module-registry.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/development/crm/module-registry.md) — **never change it**.
+- `$this->version` must exactly match the version in `README.md`.
+- Register new modules in the module registry before using any ID.
+
+---
+
+## GitHub Actions — Token Usage
+
+Every workflow must use **`secrets.GH_TOKEN`** (the org-level Personal Access Token).
+
+```yaml
+# ✅ Correct
+- uses: actions/checkout@v4
+  with:
+    token: ${{ secrets.GH_TOKEN }}
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+```
+
+```yaml
+# ❌ Wrong — never use these in workflows
+token: ${{ github.token }}
+token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+PHP scripts read the token with: `getenv('GH_TOKEN') ?: getenv('GITHUB_TOKEN')` — `GH_TOKEN` is always preferred; `GITHUB_TOKEN` is a local-dev fallback only.
+
+---
+
+## MokoStandards Reference
+
+This repository is governed by [MokoStandards](https://github.com/mokoconsulting-tech/MokoStandards). Authoritative policies:
+
+| Document | Purpose |
+|----------|---------|
+| [file-header-standards.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/file-header-standards.md) | Copyright-header rules for every file type |
+| [coding-style-guide.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/coding-style-guide.md) | Naming and formatting conventions |
+| [branching-strategy.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/branching-strategy.md) | Branch naming, hierarchy, and release workflow |
+| [merge-strategy.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/merge-strategy.md) | Squash-merge policy and PR title/body conventions |
+| [changelog-standards.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/changelog-standards.md) | How and when to update CHANGELOG.md |
+| [module-registry.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/development/crm/module-registry.md) | Dolibarr module ID registry — check before reserving a new ID |
+| [crm-development-standards.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/policy/crm/development-standards.md) | MokoCRM Dolibarr module development standards |
+
+---
+
+## Naming Conventions
+
+| Context | Convention | Example |
+|---------|-----------|---------|
+| PHP class | `PascalCase` | `MyService` |
+| PHP method / function | `camelCase` | `getUserData()` |
+| PHP variable | `$snake_case` | `$module_name` |
+| PHP constant | `UPPER_SNAKE_CASE` | `MAX_RETRIES` |
+| PHP class file | `PascalCase.php` | `ApiClient.php` |
+| PHP script file | `snake_case.php` | `check_health.php` |
+| YAML workflow | `kebab-case.yml` | `ci-dolibarr.yml` |
+| Markdown doc | `kebab-case.md` | `installation-guide.md` |
+
+---
+
+## Commit Messages
+
+Format: `<type>(<scope>): <subject>` — imperative, lower-case subject, no trailing period.
+
+Valid types: `feat` · `fix` · `docs` · `chore` · `ci` · `refactor` · `style` · `test` · `perf` · `revert` · `build`
+
+---
+
+## Branch Naming
+
+Format: `<prefix>/<MAJOR.MINOR.PATCH>[/description]`
+
+Approved prefixes: `dev/` · `rc/` · `version/` · `patch/` · `copilot/` · `dependabot/`
+
+---
+
+## Keeping Documentation Current
+
+| Change type | Documentation to update |
+|-------------|------------------------|
+| New or renamed public PHP method | PHPDoc block; `docs/api/` index for that class |
+| New or changed module version | Update `$this->version` in module descriptor; bump `README.md` |
+| New library class or major feature | `CHANGELOG.md` entry under `Added` |
+| Bug fix | `CHANGELOG.md` entry under `Fixed` |
+| Breaking change | `CHANGELOG.md` entry under `Changed` |
+| Any modified file | Update the `VERSION` field in that file's `FILE INFORMATION` block |
+| **Every PR** | **Bump the patch version** — increment `XX.YY.ZZ` in `README.md`; `sync-version-on-merge` propagates it |
+
+---
+
+## Key Constraints
+
+- Never commit directly to `main` — all changes go via PR, squash-merged
+- Never skip the FILE INFORMATION block on a new file
+- Never change `$this->numero` (module ID) — it is permanently registered in the module registry
+- Never hardcode version numbers in body text — update `README.md` and let automation propagate
+- Never use `github.token` or `secrets.GITHUB_TOKEN` in workflows — always use `secrets.GH_TOKEN`
+- Never let the module descriptor `$this->version` and `README.md` version go out of sync
+- Never register a new module ID without first checking module-registry.md for the next available ID
