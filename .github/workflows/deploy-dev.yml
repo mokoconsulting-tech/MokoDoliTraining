@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-dev.yml
-# VERSION: 04.00.25
+# VERSION: 04.00.27
 # BRIEF: SFTP deployment workflow for development server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-dev.yml in all governed repos.
 #       Port is resolved in order: DEV_FTP_PORT variable → :port suffix in DEV_FTP_HOST → 22.
@@ -35,14 +35,11 @@ name: Deploy to Dev Server (SFTP)
 #
 # Required org-level variables:  DEV_FTP_HOST, DEV_FTP_PATH, DEV_FTP_USERNAME
 # Optional org-level variable:   DEV_FTP_PORT (auto-detected from host or defaults to 22)
-# Optional org/repo variable:    DEV_FTP_PATH_SUFFIX
-# Optional org/repo variable:    CUSTOM_FOLDER — when set, appended to the remote path after
-#                                 DEV_FTP_PATH_SUFFIX; used automatically for Dolibarr modules
-# Optional org/repo variable:    FTP_IGNORE — comma-delimited list of regex patterns, each enclosed in
-#                                 double quotes, for files/paths to exclude from upload, e.g.:
-#                                   "\.git*", "\.DS_Store", "configuration\.php", "\.ps1"
-#                                 Patterns are tested against the forward-slash relative path of each
-#                                 file (e.g. "subdir/file.txt"). The repository .gitignore is also
+# Optional org/repo variable:    CUSTOM_NAME — when set, appended to DEV_FTP_PATH to form the
+#                                 full remote destination: DEV_FTP_PATH/CUSTOM_NAME
+# Ignore rules:                  Place a .ftp_ignore file in the repository root. Each non-empty,
+#                                 non-comment line is a regex pattern tested against the relative path
+#                                 of each file (e.g. "subdir/file.txt"). The .gitignore is also
 #                                 respected automatically.
 # Required org-level secret:     DEV_FTP_KEY (preferred) or DEV_FTP_PASSWORD
 #
@@ -163,15 +160,47 @@ jobs:
         if: steps.source.outputs.skip == 'false'
         env:
           SOURCE_DIR: ${{ steps.source.outputs.dir }}
-          FTP_IGNORE: ${{ vars.FTP_IGNORE }}
         run: |
-          # ── Parse FTP_IGNORE ─────────────────────────────────────────────────
+          # ── Convert a gitignore-style glob line to an ERE pattern ──────────────
+          ftp_ignore_to_regex() {
+            local line="$1"
+            local anchored=false
+            # Strip inline comments and whitespace
+            line=$(printf '%s' "$line" | sed 's/[[:space:]]*#.*$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [ -z "$line" ] && return
+            # Skip negation patterns (not supported)
+            [[ "$line" == !* ]] && return
+            # Trailing slash = directory marker; strip it
+            line="${line%/}"
+            # Leading slash = anchored to root; strip it
+            if [[ "$line" == /* ]]; then
+              anchored=true
+              line="${line#/}"
+            fi
+            # Escape ERE special chars, then restore glob semantics
+            local regex
+            regex=$(printf '%s' "$line" \
+              | sed 's/[.+^${}()|[\\]/\\&/g' \
+              | sed 's/\\\*\\\*/\x01/g' \
+              | sed 's/\\\*/[^\/]*/g' \
+              | sed 's/\x01/.*/g' \
+              | sed 's/\\\?/[^\/]/g')
+            if $anchored; then
+              printf '^%s(/|$)' "$regex"
+            else
+              printf '(^|/)%s(/|$)' "$regex"
+            fi
+          }
+
+          # ── Read .ftp_ignore (gitignore-style globs) ─────────────────────────
           IGNORE_PATTERNS=()
-          if [ -n "$FTP_IGNORE" ]; then
-            while IFS= read -r -d ',' token; do
-              pattern=$(printf '%s' "$token" | sed 's/^[[:space:]]*"//;s/"[[:space:]]*$//')
-              [ -n "$pattern" ] && IGNORE_PATTERNS+=("$pattern")
-            done <<< "${FTP_IGNORE},"
+          IGNORE_SOURCES=()
+          if [ -f ".ftp_ignore" ]; then
+            while IFS= read -r line; do
+              [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+              regex=$(ftp_ignore_to_regex "$line")
+              [ -n "$regex" ] && IGNORE_PATTERNS+=("$regex") && IGNORE_SOURCES+=("$line")
+            done < ".ftp_ignore"
           fi
 
           # ── Walk src/ and classify every file ────────────────────────────────
@@ -180,9 +209,9 @@ jobs:
           while IFS= read -r -d '' file; do
             rel="${file#${SOURCE_DIR}/}"
             SKIP=false
-            for pat in "${IGNORE_PATTERNS[@]}"; do
-              if echo "$rel" | grep -qE "$pat" 2>/dev/null; then
-                IGNORED_FILES+=("$rel | FTP_IGNORE \`$pat\`")
+            for i in "${!IGNORE_PATTERNS[@]}"; do
+              if echo "$rel" | grep -qE "${IGNORE_PATTERNS[$i]}" 2>/dev/null; then
+                IGNORED_FILES+=("$rel | .ftp_ignore \`${IGNORE_SOURCES[$i]}\`")
                 SKIP=true; break
               fi
             done
@@ -262,13 +291,10 @@ jobs:
         if: steps.source.outputs.skip == 'false'
         id: remote
         env:
-          DEV_FTP_PATH:        ${{ vars.DEV_FTP_PATH }}
-          DEV_FTP_PATH_SUFFIX: ${{ vars.DEV_FTP_PATH_SUFFIX }}
-          CUSTOM_FOLDER:       ${{ vars.CUSTOM_FOLDER }}
+          DEV_FTP_PATH: ${{ vars.DEV_FTP_PATH }}
+          CUSTOM_NAME:  ${{ vars.CUSTOM_NAME }}
         run: |
           BASE="$DEV_FTP_PATH"
-          SUFFIX="$DEV_FTP_PATH_SUFFIX"
-          CUSTOM="$CUSTOM_FOLDER"
 
           if [ -z "$BASE" ]; then
             echo "❌ DEV_FTP_PATH is not set."
@@ -277,21 +303,42 @@ jobs:
             exit 1
           fi
 
-          # Always append suffix when set — path is BASE/SUFFIX
-          if [ -n "$SUFFIX" ]; then
-            REMOTE="${BASE%/}/${SUFFIX#/}"
+          # Path format: DEV_FTP_PATH/CUSTOM_NAME (CUSTOM_NAME is optional)
+          if [ -n "$CUSTOM_NAME" ]; then
+            REMOTE="${BASE%/}/${CUSTOM_NAME#/}"
           else
             REMOTE="$BASE"
           fi
 
-          # Append CUSTOM_FOLDER when set — makes Dolibarr module paths automatic
-          if [ -n "$CUSTOM" ]; then
-            REMOTE="${REMOTE%/}/${CUSTOM#/}"
-            echo "ℹ️  CUSTOM_FOLDER appended: ${CUSTOM}"
+          # ── Platform-specific path safety guards ──────────────────────────────
+          PLATFORM=""
+          if [ -f ".moko-standards" ]; then
+            PLATFORM=$(grep -E '^platform:' .moko-standards | sed 's/.*:[[:space:]]*//' | tr -d '"')
           fi
 
+          if [ "$PLATFORM" = "crm-module" ]; then
+            # Dolibarr modules must deploy under htdocs/custom/ — guard against
+            # accidentally overwriting server root or unrelated directories.
+            if [[ "$REMOTE" != *custom* ]]; then
+              echo "❌ Safety check failed: Dolibarr (crm-module) remote path must contain 'custom'."
+              echo "   Current path: ${REMOTE}"
+              echo "   Set CUSTOM_NAME to the module's htdocs/custom/ subdirectory."
+              exit 1
+            fi
+          fi
+
+          if [ "$PLATFORM" = "waas-component" ]; then
+            # Joomla extensions may only deploy to the server's tmp/ directory.
+            if [[ "$REMOTE" != *tmp* ]]; then
+              echo "❌ Safety check failed: Joomla (waas-component) remote path must contain 'tmp'."
+              echo "   Current path: ${REMOTE}"
+              echo "   Set CUSTOM_NAME to a path under the server tmp/ directory."
+              exit 1
+            fi
+          fi
+
+          echo "ℹ️  Remote path: ${REMOTE}"
           echo "path=${REMOTE}" >> "$GITHUB_OUTPUT"
-          echo "Remote path: ${REMOTE}"
 
       - name: Detect SFTP authentication method
         if: steps.source.outputs.skip == 'false'
