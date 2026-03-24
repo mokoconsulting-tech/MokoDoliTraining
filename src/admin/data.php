@@ -8,8 +8,8 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/data.php
- * VERSION:  01.00.00
- * BRIEF:    Training Data tab: manifest table, SQL file info, dataset overview.
+ * VERSION:  development
+ * BRIEF:    Training Data tab: manifest table and dataset overview.
  */
 
 $res = 0;
@@ -22,19 +22,18 @@ if (!$res) die('Include of main fails');
 require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
 dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 
-if (!$user->admin) accessforbidden();
+// data tab is visible to any permission level (read, reset, or manage)
+if (!mokodolitraining_has_perm($user, 'read')
+	&& !mokodolitraining_has_perm($user, 'reset')
+	&& !mokodolitraining_has_perm($user, 'manage')) {
+	accessforbidden();
+}
 
 $langs->load('mokodolitraining@mokodolitraining');
 
 // ── Data ──────────────────────────────────────────────────────────────────────
-$manifest   = mokodolitraining_get_manifest();
-$summary    = mokodolitraining_get_manifest_summary();
-$seed_path  = mokodolitraining_get_seed_sql_path();
-$reset_path = mokodolitraining_get_reset_sql_path();
-
-$seed_size  = file_exists($seed_path)  ? filesize($seed_path)  : 0;
-$reset_size = file_exists($reset_path) ? filesize($reset_path) : 0;
-$seed_mtime = file_exists($seed_path)  ? filemtime($seed_path) : 0;
+$manifest = mokodolitraining_get_manifest();
+$summary  = mokodolitraining_get_manifest_summary();
 
 // Count rows per manifest table for the bar chart column
 $max_count = 1;
@@ -52,38 +51,6 @@ print load_fiche_titre('MokoDoliTraining', $linkback, 'technic');
 dol_htmloutput_events();
 
 print dol_get_fiche_head(mokodolitraining_admin_tabs(), 'data', '', -1, 'technic');
-
-// ── SQL file info ─────────────────────────────────────────────────────────────
-print '<table class="noborder centpercent" style="margin-bottom:20px">';
-print '<tr class="liste_titre">';
-printf('<th>%s</th><th>%s</th><th class="right">%s</th><th>%s</th>',
-	$langs->trans('DataSqlFile'),
-	$langs->trans('DataSqlPurpose'),
-	$langs->trans('DataSqlSize'),
-	$langs->trans('DataSqlModified')
-);
-print '</tr>';
-
-foreach ([
-	[$seed_path,  $langs->trans('DataSqlSeedPurpose'),  $seed_size,  $seed_mtime],
-	[$reset_path, $langs->trans('DataSqlResetPurpose'), $reset_size, 0],
-] as [$path, $purpose, $size, $mtime]) {
-	$exists = file_exists($path);
-	printf(
-		'<tr class="oddeven">'
-		. '<td><code class="small">%s</code></td>'
-		. '<td class="opacitymedium">%s</td>'
-		. '<td class="right">%s</td>'
-		. '<td>%s</td>'
-		. '</tr>',
-		dol_htmlentities(basename($path)),
-		$purpose,
-		$exists ? mokodolitraining_format_bytes($size) : '<span class="badge badge-status8">' . $langs->trans('DataFileMissing') . '</span>',
-		($exists && $mtime) ? dol_print_date($mtime, 'dayhour') : ($exists ? '<span class="opacitymedium">-</span>' : '')
-	);
-}
-
-print '</table>';
 
 // ── Manifest table ────────────────────────────────────────────────────────────
 if (empty($manifest)) {

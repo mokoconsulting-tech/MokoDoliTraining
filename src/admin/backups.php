@@ -8,8 +8,8 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/backups.php
- * VERSION:  01.02.00
- * BRIEF:    Backup manager: list, verify integrity, restore from specific backup, delete.
+ * VERSION:  development
+ * BRIEF:    Backup manager: list, verify integrity, restore from DB backup, delete.
  */
 
 $res = 0;
@@ -22,68 +22,53 @@ if (!$res) die('Include of main fails');
 require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
 dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 
-if (!$user->admin) accessforbidden();
+if (!mokodolitraining_has_perm($user, 'manage')) accessforbidden();
 
 $langs->load('mokodolitraining@mokodolitraining');
-$action   = GETPOST('action',   'aZ09');
-$filename = GETPOST('filename', 'alpha');
+$action = GETPOST('action', 'aZ09');
+$rowid  = GETPOSTINT('rowid');
 
 ['backup' => $backup, 'audit' => $audit] = mokodolitraining_load_classes($db);
 
 
 // ── Action: verify ────────────────────────────────────────────────────────────
-if ($action === 'verify' && $filename) {
-	$path = $backup->getBackupByName($filename);
-	if (!$path) {
-		setEventMessages($langs->trans('BackupDownloadFail'), null, 'errors');
+if ($action === 'verify' && $rowid) {
+	$result = $backup->verifyIntegrity($rowid);
+	if ($result['ok']) {
+		setEventMessages(sprintf($langs->trans('ResultIntegrityOk'), $rowid), null, 'mesgs');
+		$audit->log((int) $user->id, 'integrity_check', 'ok', note: 'Verified rowid: ' . $rowid, entity: (int) $conf->entity);
 	} else {
-		$result = $backup->verifyIntegrity($path);
-		if ($result['ok']) {
-			setEventMessages(sprintf($langs->trans('ResultIntegrityOk'), dol_htmlentities($filename)), null, 'mesgs');
-			$audit->log((int) $user->id, 'integrity_check', 'ok', note: 'Verified: ' . $filename, entity: (int) $conf->entity);
-		} else {
-			setEventMessages(sprintf($langs->trans('ResultIntegrityFail'), $filename, $result['reason']), null, 'errors');
-			$audit->log((int) $user->id, 'integrity_check', 'error', note: $filename . ': ' . $result['reason'], entity: (int) $conf->entity);
-		}
+		setEventMessages(sprintf($langs->trans('ResultIntegrityFail'), $rowid, $result['reason']), null, 'errors');
+		$audit->log((int) $user->id, 'integrity_check', 'error', note: 'rowid ' . $rowid . ': ' . $result['reason'], entity: (int) $conf->entity);
 	}
 	header('Location: ' . $_SERVER['PHP_SELF']);
 	exit;
 }
 
 // ── Action: delete ────────────────────────────────────────────────────────────
-if ($action === 'delete' && $filename) {
-	$path = $backup->getBackupByName($filename);
-	if (!$path) {
-		setEventMessages($langs->trans('BackupDownloadFail'), null, 'errors');
+if ($action === 'delete' && $rowid) {
+	if ($backup->deleteById($rowid)) {
+		setEventMessages($langs->trans('BackupDeleteOk'), null, 'mesgs');
+		$audit->log((int) $user->id, 'backup_delete', 'ok', note: 'Deleted rowid: ' . $rowid, entity: (int) $conf->entity);
 	} else {
-		@unlink($path);
-		@unlink($path . '.sha256');
-		if (!file_exists($path)) {
-			setEventMessages($langs->trans('BackupDeleteOk'), null, 'mesgs');
-			$audit->log((int) $user->id, 'backup_delete', 'ok', note: 'Deleted: ' . $filename, entity: (int) $conf->entity);
-		} else {
-			setEventMessages($langs->trans('BackupDeleteFail'), null, 'errors');
-		}
+		setEventMessages($langs->trans('BackupDeleteFail'), null, 'errors');
 	}
 	header('Location: ' . $_SERVER['PHP_SELF']);
 	exit;
 }
 
 // ── Action: restore from specific backup ──────────────────────────────────────
-if ($action === 'restore_file' && $filename) {
-	$path = $backup->getBackupByName($filename);
-	if (!$path) {
-		setEventMessages($langs->trans('BackupDownloadFail'), null, 'errors');
-	} elseif ($backup->isLocked()) {
+if ($action === 'restore_file' && $rowid) {
+	if ($backup->isLocked()) {
 		setEventMessages($langs->trans('BackupLockWait'), null, 'warnings');
 	} elseif ($backup->acquireLock()) {
 		$t0   = hrtime(true);
 		$errs = [];
 
-		$del = $backup->runReset();
+		$del  = $backup->runReset((int) $conf->entity);
 		$errs = array_merge($errs, $del['errors']);
 
-		$res = $backup->restoreFromFile($path);
+		$res  = $backup->restoreById($rowid);
 		$errs = array_merge($errs, $res['errors']);
 
 		$ms     = (int) ((hrtime(true) - $t0) / 1e6);
@@ -97,7 +82,7 @@ if ($action === 'restore_file' && $filename) {
 		}
 
 		dolibarr_set_const($db, 'MOKODOLITRAINING_RESET_DATE', gmdate('c'), 'chaine', 0, '', $conf->entity);
-		$audit->log((int) $user->id, 'backup_restore', $status, $res['ok'], 0, $ms, $path, errors: $errs, entity: (int) $conf->entity);
+		$audit->log((int) $user->id, 'backup_restore', $status, $res['ok'], 0, $ms, 'rowid:' . $rowid, errors: $errs, entity: (int) $conf->entity);
 		$backup->releaseLock();
 	}
 	header('Location: ' . $_SERVER['PHP_SELF']);
@@ -105,9 +90,9 @@ if ($action === 'restore_file' && $filename) {
 }
 
 // ── Action: download (redirect to handler) ────────────────────────────────────
-if ($action === 'download' && $filename) {
+if ($action === 'download' && $rowid) {
 	$dl_url = dol_buildpath('/mokodolitraining/admin/download.php', 1)
-		. '?filename=' . urlencode($filename) . '&token=' . urlencode(newToken());
+		. '?rowid=' . (int) $rowid . '&token=' . urlencode(newToken());
 	header('Location: ' . $dl_url);
 	exit;
 }
@@ -137,11 +122,12 @@ if (empty($all_backups)) {
 	printf(
 		'<tr class="liste_titre">'
 		. '<th>%s</th><th>%s</th><th class="center">%s</th>'
-		. '<th class="right">%s</th><th>%s</th><th class="center">%s</th>'
+		. '<th class="right">%s</th><th class="right">%s</th><th>%s</th><th class="center">%s</th>'
 		. '</tr>',
-		$langs->trans('BackupFile'),
+		$langs->trans('BackupRef'),
 		$langs->trans('BackupType'),
 		$langs->trans('BackupTimestamp'),
+		$langs->trans('BackupRows'),
 		$langs->trans('BackupSize'),
 		$langs->trans('BackupChecksum'),
 		$langs->trans('BackupActions')
@@ -149,10 +135,10 @@ if (empty($all_backups)) {
 
 	foreach ($all_backups as $b) {
 		$tok = newToken();
-		$enc = urlencode($b['name']);
+		$rid = (int) $b['rowid'];
 
 		// type badge
-		$is_rollback = ($b['type'] === 'rollback');
+		$is_rollback = ($b['label'] === 'rollback');
 		$badge_cls   = $is_rollback ? 'badge-status8' : 'badge-status4';
 		$badge_lbl   = $is_rollback ? $langs->trans('BackupTypeRollback') : $langs->trans('BackupTypeSnapshot');
 
@@ -162,14 +148,14 @@ if (empty($all_backups)) {
 			: '<span class="opacitymedium">-</span>';
 
 		// formatted timestamp
-		$ts_disp = $b['ts']
-			? dol_print_date(dol_stringtotime($b['ts']), 'dayhour')
+		$ts_disp = $b['datec']
+			? dol_print_date(dol_stringtotime($b['datec']), 'dayhour')
 			: '<span class="opacitymedium">-</span>';
 
 		// action links using img_picto
 		$form_base = '<form method="POST" action="' . $self . '" style="display:inline">'
 			. '<input type="hidden" name="token" value="' . $tok . '">'
-			. '<input type="hidden" name="filename" value="' . dol_htmlentities($b['name']) . '">';
+			. '<input type="hidden" name="rowid" value="' . $rid . '">';
 
 		$btn_verify = $form_base
 			. '<button type="submit" name="action" value="verify" class="reposition" title="' . $langs->trans('ActionVerify') . '">'
@@ -188,7 +174,7 @@ if (empty($all_backups)) {
 			. ' title="' . $langs->trans('ActionDelete') . '">'
 			. img_picto($langs->trans('ActionDelete'), 'delete') . '</button></form>';
 
-		$dl_url = $self . '?action=download&filename=' . $enc . '&token=' . urlencode($tok);
+		$dl_url = $self . '?action=download&rowid=' . $rid . '&token=' . urlencode($tok);
 		$btn_dl = '<a href="' . $dl_url . '" title="' . $langs->trans('ActionDownload') . '" class="reposition">'
 			. img_picto($langs->trans('ActionDownload'), 'download') . '</a>';
 
@@ -198,13 +184,15 @@ if (empty($all_backups)) {
 			. '<td><span class="badge %s">%s</span></td>'
 			. '<td class="center nowrap">%s</td>'
 			. '<td class="right nowrap">%s</td>'
+			. '<td class="right nowrap">%s</td>'
 			. '<td>%s</td>'
 			. '<td class="center nowrap" style="width:100px">%s %s %s %s</td>'
 			. '</tr>',
-			dol_htmlentities($b['name']),
+			dol_htmlentities($b['ref']),
 			$badge_cls, $badge_lbl,
 			$ts_disp,
-			mokodolitraining_format_bytes($b['size']),
+			number_format((int) $b['rows']),
+			mokodolitraining_format_bytes((int) $b['size']),
 			$cs_disp,
 			$btn_verify, $btn_restore, $btn_dl, $btn_delete
 		);

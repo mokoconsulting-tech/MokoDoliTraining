@@ -8,33 +8,28 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingBackup.class.php
- * VERSION:  04.00.00
+ * VERSION:  development
  * BRIEF:    Backup, snapshot, restore, integrity, and retention manager.
  *
- * NOTE: Backup files use the .php extension and open with a die() guard so
- *       they cannot be downloaded via HTTP even without .htaccess.
- *       Full (rollback) backups delegate to Utils::dumpDatabase (mysqlnobin):
- *       DROP TABLE IF EXISTS + CREATE TABLE + batched INSERT per table.
- *       Snapshot backups are manifest-scoped INSERT...ON DUPLICATE KEY UPDATE.
+ * NOTE: All backup SQL content is stored in llx_mokodolitraining_backup.
+ *       No backup files are written to disk — only a .lock file is used
+ *       during backup/restore operations to prevent concurrency.
+ *       Full (rollback) backups delegate to Utils::dumpDatabase (mysqlnobin)
+ *       and capture the output into the DB. Snapshot backups are
+ *       manifest-scoped INSERT...ON DUPLICATE KEY UPDATE statements.
  */
 
 class MokoDoliTrainingBackup
 {
 	private $db;
-	private string $backup_dir;
-	private string $manifest_path;
-	private string $seed_sql;
-	private string $reset_sql;
 	private string $lock_file;
 	private int    $max_backups;
 
-	// PHP die() header prepended to every backup file.
-	// Prevents HTTP download even if .htaccess is missing or misconfigured.
-	const PHP_GUARD = "<?php die('No direct access.'); ?>\n";
-
-	// Junction tables that use fk_categorie instead of rowid as manifest PK.
-	// Keys use bare names (no prefix) -- loadManifest() strips the prefix.
+	// Tables that use a non-rowid lookup column when building snapshot SELECT.
+	// Keys use bare names (no prefix) — loadManifest() strips the prefix.
+	// Must stay in sync with MokoDoliTrainingSeed::TABLE_PK.
 	const JUNCTION = [
+		'actioncomm'        => 'id',
 		'categorie_societe' => 'fk_categorie',
 		'categorie_product' => 'fk_categorie',
 	];
@@ -43,30 +38,25 @@ class MokoDoliTrainingBackup
 
 	public function __construct($db, int $max_backups = 10)
 	{
-		$this->db            = $db;
-		$base                = dirname(__DIR__);
-		$this->backup_dir    = $base . '/backup';
-		$this->manifest_path = $base . '/sql/manifest.json';
-		$this->seed_sql      = $base . '/sql/mokotraining.sql';
-		$this->reset_sql     = $base . '/sql/mokotraining_reset.sql';
-		$this->lock_file     = $base . '/backup/.lock';
-		$this->max_backups   = max(2, $max_backups);
+		$this->db          = $db;
+		$lock_dir          = dirname(__DIR__) . '/backup';
+		$this->lock_file   = $lock_dir . '/.lock';
+		$this->max_backups = max(2, $max_backups);
 	}
 
 	// ── Lock ──────────────────────────────────────────────────────────────────
 
 	public function acquireLock(): bool
 	{
-		if (!is_dir($this->backup_dir)) {
-			dol_mkdir($this->backup_dir);
+		$lock_dir = dirname($this->lock_file);
+		if (!is_dir($lock_dir)) {
+			dol_mkdir($lock_dir);
 		}
-		// Break stale locks older than LOCK_TTL
 		if (file_exists($this->lock_file)) {
 			$age = time() - (int) file_get_contents($this->lock_file);
 			if ($age < self::LOCK_TTL) return false;
 			@unlink($this->lock_file);
 		}
-		// Atomic create -- 'x' flag fails if file already exists
 		$fh = @fopen($this->lock_file, 'x');
 		if ($fh === false) return false;
 		fwrite($fh, (string) time());
@@ -90,139 +80,76 @@ class MokoDoliTrainingBackup
 
 	// ── Full backup via Utils::dumpDatabase (mysqlnobin) ──────────────────────
 	//
-	// Dolibarr's mysqlnobin path outputs:
-	//   DROP TABLE IF EXISTS `tbl`;
-	//   CREATE TABLE `tbl` (...);
-	//   LOCK TABLES `tbl` WRITE;
-	//   INSERT INTO `tbl` VALUES (...),(...);
-	//   UNLOCK TABLES;
-	//
-	// We delegate to Utils::dumpDatabase(), then:
-	//   1. Prepend PHP_GUARD (die header -- HTTP download protection)
-	//   2. Prepend our module comment header with SHA256 placeholder
-	//   3. Append body from Utils output
-	//   4. Compute and embed SHA256; write .php.sha256 sidecar
-	//   5. Remove the original .sql from Dolibarr's backup dir
+	// Captures Utils output into the DB table instead of a filesystem file.
+	// The temp .sql file from Dolibarr is read, stored in content, then deleted.
 
 	public function createFullBackup(string $label): array
 	{
 		global $conf;
 		$errors = [];
 
-		if (!is_dir($this->backup_dir)) {
-			if (!mkdir($this->backup_dir, 0750, true)) {
-				return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => [
-					'Could not create backup directory: ' . $this->backup_dir,
-				]];
-			}
-		}
-
-		if (!is_writable($this->backup_dir)) {
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => [
-				'Backup directory is not writable: ' . $this->backup_dir,
-			]];
-		}
-
 		require_once DOL_DOCUMENT_ROOT . '/core/class/utils.class.php';
 		$utils = new Utils($this->db);
 
-		$ts          = gmdate('Ymd_His');
-		$sql_file    = $label . '_' . $ts . '.sql';   // temp name for Utils output
-		$dest_file   = $label . '_' . $ts . '.php';   // final PHP-wrapped file
-		$dol_dir     = $conf->admin->dir_output . '/backup';
-		$dest        = $this->backup_dir . '/' . $dest_file;
+		$ts      = gmdate('Ymd_His');
+		$ref     = $label . '_' . $ts;
+		$sql_tmp = $ref . '.sql';
+		$dol_dir = $conf->admin->dir_output . '/backup';
 
-		// dumpDatabase(compression, type, usedefault, file, keeplastnfiles, execmethod)
-		// usedefault=0 -- do not read GET/POST; keeplastnfiles=0 -- we handle retention.
-		$ret = $utils->dumpDatabase('none', 'mysqlnobin', 0, $sql_file, 0, 0);
-
+		$ret = $utils->dumpDatabase('none', 'mysqlnobin', 0, $sql_tmp, 0, 0);
 		if ($ret < 0) {
 			$errors[] = 'Utils::dumpDatabase failed: ' . $utils->error;
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => $errors];
+			return ['rowid' => 0, 'rows' => 0, 'checksum' => '', 'errors' => $errors];
 		}
 
-		$src = $dol_dir . '/' . $sql_file;
+		$src = $dol_dir . '/' . $sql_tmp;
 		if (!file_exists($src)) {
 			$errors[] = 'Dump file not found after dumpDatabase: ' . $src;
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => $errors];
+			return ['rowid' => 0, 'rows' => 0, 'checksum' => '', 'errors' => $errors];
 		}
 
 		$body = file_get_contents($src);
+		@unlink($src);
 
-		// Build the full file: PHP guard + module header + Dolibarr dump body
-		$header = implode("\n", [
+		$header  = implode("\n", [
 			'-- MokoDoliTraining FULL backup: ' . $label . ' | ' . gmdate('c'),
 			'-- Module ID: 185068 | Utils::dumpDatabase (mysqlnobin) | DO NOT EDIT',
 			'-- SHA256: {CHECKSUM}',
 			'',
 		]);
-
-		$content  = self::PHP_GUARD . $header . $body;
+		$content  = $header . $body;
 		$checksum = hash('sha256', $content);
 		$content  = str_replace('{CHECKSUM}', $checksum, $content);
 
-		if (file_put_contents($dest, $content) === false) {
-			$errors[] = 'Failed to write backup file: ' . $dest;
-			@unlink($src);
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => $errors];
+		$rows = $this->countSqlRows($content);
+		$rowid = $this->storeInDb($label, $ref, $content, $checksum, $rows, (int) ($conf->entity ?? 1));
+		if (!$rowid) {
+			$errors[] = 'Failed to store backup in database.';
+			return ['rowid' => 0, 'rows' => $rows, 'checksum' => $checksum, 'errors' => $errors];
 		}
 
-		if (file_put_contents($dest . '.sha256', $checksum) === false) {
-			$errors[] = 'Failed to write checksum sidecar: ' . $dest . '.sha256';
-		}
+		$this->enforceRetentionDb($label, (int) ($conf->entity ?? 1));
 
-		@unlink($src); // remove Utils temp output; we own the final file now
-
-		$rows = $this->countDumpRows($dest);
-		$this->enforceRetention($label);
-
-		return ['path' => $dest, 'rows' => $rows, 'checksum' => $checksum, 'errors' => $errors];
-	}
-
-	// Approximate row count from the PHP-wrapped dump (for display only)
-	private function countDumpRows(string $path): int
-	{
-		$count = 0;
-		$fh    = fopen($path, 'r');
-		if (!$fh) return 0;
-		while (($line = fgets($fh)) !== false) {
-			if (stripos($line, 'INSERT INTO') === 0) {
-				$count += substr_count($line, '),(') + 1;
-			}
-		}
-		fclose($fh);
-		return $count;
+		return ['rowid' => $rowid, 'rows' => $rows, 'checksum' => $checksum, 'errors' => $errors];
 	}
 
 	// ── Manifest-scoped snapshot (INSERT ... ON DUPLICATE KEY UPDATE) ──────────
 
 	public function createBackup(string $label): array
 	{
-		$errors = [];
+		global $conf;
+		$errors   = [];
+		$entity   = (int) ($conf->entity ?? 1);
+		$manifest = $this->loadManifest($entity);
 
-		if (!is_dir($this->backup_dir)) {
-			if (!mkdir($this->backup_dir, 0750, true)) {
-				return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => [
-					'Could not create backup directory: ' . $this->backup_dir,
-				]];
-			}
-		}
-
-		if (!is_writable($this->backup_dir)) {
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => [
-				'Backup directory is not writable: ' . $this->backup_dir,
-			]];
-		}
-
-		$manifest = $this->loadManifest();
 		if (empty($manifest)) {
-			return ['path' => '', 'rows' => 0, 'checksum' => '', 'errors' => [
-				'Manifest not found or empty: ' . $this->manifest_path,
+			return ['rowid' => 0, 'rows' => 0, 'checksum' => '', 'errors' => [
+				'Manifest is empty — run Install first to seed training data.',
 			]];
 		}
 
 		$ts   = gmdate('Ymd_His');
-		$path = $this->backup_dir . '/' . $label . '_' . $ts . '.php';
+		$ref  = $label . '_' . $ts;
 
 		$sql_lines = [
 			'-- MokoDoliTraining snapshot backup: ' . $label . ' | ' . gmdate('c'),
@@ -250,22 +177,213 @@ class MokoDoliTrainingBackup
 		$sql_lines[] = 'SET FOREIGN_KEY_CHECKS = 1;';
 		$sql_lines[] = '-- END SNAPSHOT: ' . $total . ' rows / ' . count($manifest) . ' tables / ' . gmdate('c');
 
-		$content  = self::PHP_GUARD . implode("\n", $sql_lines);
+		$content  = implode("\n", $sql_lines);
 		$checksum = hash('sha256', $content);
 		$content  = str_replace('{CHECKSUM}', $checksum, $content);
 
-		if (file_put_contents($path, $content) === false) {
-			$errors[] = 'Failed to write snapshot file: ' . $path;
-			return ['path' => '', 'rows' => $total, 'checksum' => '', 'errors' => $errors];
+		$rowid = $this->storeInDb($label, $ref, $content, $checksum, $total, $entity);
+		if (!$rowid) {
+			$errors[] = 'Failed to store snapshot in database.';
+			return ['rowid' => 0, 'rows' => $total, 'checksum' => $checksum, 'errors' => $errors];
 		}
 
-		if (file_put_contents($path . '.sha256', $checksum) === false) {
-			$errors[] = 'Failed to write checksum sidecar: ' . $path . '.sha256';
+		$this->enforceRetentionDb($label, $entity);
+
+		return ['rowid' => $rowid, 'rows' => $total, 'checksum' => $checksum, 'errors' => $errors];
+	}
+
+	// ── Integrity ─────────────────────────────────────────────────────────────
+
+	public function verifyIntegrity(int $rowid): array
+	{
+		$row = $this->loadRow($rowid);
+		if (!$row) {
+			return ['ok' => false, 'reason' => 'Backup record not found (rowid ' . $rowid . ')'];
 		}
 
-		$this->enforceRetention($label);
+		$content  = $row->content ?? '';
+		$stored   = $row->checksum ?? null;
 
-		return ['path' => $path, 'rows' => $total, 'checksum' => $checksum, 'errors' => $errors];
+		if (!$stored) {
+			return ['ok' => false, 'reason' => 'No checksum stored for this backup'];
+		}
+
+		// Recompute: replace embedded checksum placeholder and re-hash
+		$verify_src = preg_replace('/^-- SHA256: [a-f0-9]{64}/m', '-- SHA256: {CHECKSUM}', $content);
+		$actual     = hash('sha256', $verify_src);
+
+		if ($actual !== $stored) {
+			return [
+				'ok'     => false,
+				'reason' => 'Checksum mismatch — backup may be corrupted',
+				'stored' => $stored,
+				'actual' => $actual,
+			];
+		}
+
+		return ['ok' => true, 'checksum' => $actual];
+	}
+
+	// ── Restore ───────────────────────────────────────────────────────────────
+
+	public function restoreById(int $rowid): array
+	{
+		$integrity = $this->verifyIntegrity($rowid);
+		if (!$integrity['ok']) {
+			return ['ok' => 0, 'errors' => ['Integrity check failed: ' . $integrity['reason']]];
+		}
+		$row = $this->loadRow($rowid);
+		return $this->execSqlContent($row->content ?? '');
+	}
+
+	// ── SQL execution ─────────────────────────────────────────────────────────
+
+	public function execSqlContent(string $content): array
+	{
+		$ok       = 0;
+		$errors   = [];
+		$stmt     = '';
+		$in_delim = false;
+
+		$this->db->begin();
+
+		foreach (explode("\n", $content) as $raw_line) {
+			$t = trim($raw_line);
+
+			if ($t === '')                           continue;
+			if (str_starts_with($t, '--'))           continue;
+			if (preg_match('/^DELIMITER\s+/i', $t))  { $in_delim = !$in_delim; continue; }
+			if ($in_delim)                           continue;
+
+			$stmt .= ' ' . $t;
+
+			if (str_ends_with(rtrim($t), ';')) {
+				$clean = trim($stmt);
+				if (MAIN_DB_PREFIX !== 'llx_') {
+					$clean = str_replace('llx_', MAIN_DB_PREFIX, $clean);
+				}
+				if ($clean !== '') {
+					$res = $this->db->query($clean);
+					if ($res === false) {
+						$errors[] = $this->db->lasterror() . ' -- ' . substr($clean, 0, 120);
+					} else {
+						$ok++;
+					}
+				}
+				$stmt = '';
+			}
+		}
+
+		if (!empty($errors)) {
+			$this->db->rollback();
+		} else {
+			$this->db->commit();
+		}
+
+		return ['ok' => $ok, 'errors' => $errors];
+	}
+
+	public function runSeed(string $mode = 'training', int $entity = 1): array
+	{
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingSeed.class.php');
+		$seed = new MokoDoliTrainingSeed($this->db);
+		$r1   = $seed->seedStatic($entity, $mode);
+		$r2   = $seed->seedOrders($entity);
+		return [
+			'ok'     => ($r1['ok'] && $r2['ok']) ? 1 : 0,
+			'errors' => array_merge($r1['errors'] ?? [], $r2['errors'] ?? []),
+		];
+	}
+
+	public function runReset(int $entity = 1): array
+	{
+		dol_include_once('/mokodolitraining/class/MokoDoliTrainingSeed.class.php');
+		$seed = new MokoDoliTrainingSeed($this->db);
+		return $seed->reset($entity);
+	}
+
+	// ── Listing / lookup ──────────────────────────────────────────────────────
+
+	public function listBackups(int $entity = 0): array
+	{
+		global $conf;
+		$e    = $entity ?: (int) ($conf->entity ?? 1);
+		$btbl = MAIN_DB_PREFIX . 'mokodolitraining_backup';
+		$sql  = "SELECT rowid, entity, label, ref, datec, checksum, row_count, byte_size, fk_user_creat, status"
+			  . " FROM `{$btbl}` WHERE entity = {$e} ORDER BY datec DESC, rowid DESC";
+		$res  = $this->db->query($sql);
+		if (!$res) return [];
+		$out = [];
+		while ($row = $this->db->fetch_object($res)) {
+			$out[] = [
+				'rowid'    => (int) $row->rowid,
+				'label'    => $row->label,
+				'ref'      => $row->ref,
+				'datec'    => $row->datec,
+				'rows'     => (int) $row->row_count,
+				'size'     => (int) $row->byte_size,
+				'checksum' => $row->checksum,
+				'status'   => (int) $row->status,
+			];
+		}
+		return $out;
+	}
+
+	public function getLatest(string $label, int $entity = 0): ?int
+	{
+		foreach ($this->listBackups($entity) as $b) {
+			if ($b['label'] === $label) return $b['rowid'];
+		}
+		return null;
+	}
+
+	public function deleteById(int $rowid): bool
+	{
+		$btbl = MAIN_DB_PREFIX . 'mokodolitraining_backup';
+		return (bool) $this->db->query("DELETE FROM `{$btbl}` WHERE rowid = " . (int) $rowid);
+	}
+
+	public function purgeByLabel(string $label, int $keep = 0, int $entity = 0): int
+	{
+		global $conf;
+		$e    = $entity ?: (int) ($conf->entity ?? 1);
+		$btbl = MAIN_DB_PREFIX . 'mokodolitraining_backup';
+		$sql  = "SELECT rowid FROM `{$btbl}` WHERE entity = {$e} AND label = '" . $this->db->escape($label) . "'"
+			  . " ORDER BY datec DESC, rowid DESC";
+		$res  = $this->db->query($sql);
+		if (!$res) return 0;
+		$ids = [];
+		while ($row = $this->db->fetch_object($res)) { $ids[] = (int) $row->rowid; }
+		$purged = 0;
+		foreach (array_slice($ids, $keep) as $id) {
+			if ($this->deleteById($id)) $purged++;
+		}
+		return $purged;
+	}
+
+	// ── Helpers ───────────────────────────────────────────────────────────────
+
+	private function storeInDb(string $label, string $ref, string $content, string $checksum, int $rows, int $entity): int
+	{
+		global $user;
+		$btbl  = MAIN_DB_PREFIX . 'mokodolitraining_backup';
+		$size  = strlen($content);
+		$uid   = isset($user->id) ? (int) $user->id : 0;
+		$sql   = "INSERT INTO `{$btbl}` (entity, label, ref, datec, content, checksum, row_count, byte_size, fk_user_creat, status)"
+			   . " VALUES ({$entity}, '" . $this->db->escape($label) . "', '" . $this->db->escape($ref) . "',"
+			   . " NOW(), '" . $this->db->escape($content) . "', '" . $this->db->escape($checksum) . "',"
+			   . " {$rows}, {$size}, {$uid}, 0)";
+		if (!$this->db->query($sql)) return 0;
+		return (int) $this->db->last_insert_id();
+	}
+
+	public function loadRow(int $rowid): ?object
+	{
+		$btbl = MAIN_DB_PREFIX . 'mokodolitraining_backup';
+		$res  = $this->db->query("SELECT * FROM `{$btbl}` WHERE rowid = " . (int) $rowid);
+		if (!$res) return null;
+		$row = $this->db->fetch_object($res);
+		return $row ?: null;
 	}
 
 	private function dumpTableRows(string $tbl, array $rowids, string $pk): array
@@ -314,211 +432,36 @@ class MokoDoliTrainingBackup
 		return ['sql' => implode("\n", $sql_lines), 'count' => $count, 'errors' => []];
 	}
 
-	// ── Integrity ─────────────────────────────────────────────────────────────
-
-	public function verifyIntegrity(string $path): array
+	private function countSqlRows(string $content): int
 	{
-		if (!file_exists($path)) {
-			return ['ok' => false, 'reason' => 'File not found'];
-		}
-
-		$content  = file_get_contents($path);
-		$sha_file = $path . '.sha256';
-		$stored   = file_exists($sha_file) ? trim(file_get_contents($sha_file)) : null;
-
-		preg_match('/^-- SHA256: ([a-f0-9]{64})/m', $content, $m);
-		$embedded = $m[1] ?? null;
-
-		if (!$stored && !$embedded) {
-			return ['ok' => false, 'reason' => 'No checksum available'];
-		}
-
-		$expected   = $stored ?? $embedded;
-		$verify_src = preg_replace('/^-- SHA256: [a-f0-9]{64}/m', '-- SHA256: {CHECKSUM}', $content);
-		$actual     = hash('sha256', $verify_src);
-
-		if ($actual !== $expected) {
-			return [
-				'ok'     => false,
-				'reason' => 'Checksum mismatch -- file may be corrupted or tampered',
-				'stored' => $expected,
-				'actual' => $actual,
-			];
-		}
-
-		return ['ok' => true, 'checksum' => $actual];
-	}
-
-	// ── Restore ───────────────────────────────────────────────────────────────
-
-	public function restoreFromFile(string $path): array
-	{
-		$integrity = $this->verifyIntegrity($path);
-		if (!$integrity['ok']) {
-			return ['ok' => 0, 'errors' => ['Integrity check failed: ' . $integrity['reason']]];
-		}
-		return $this->execSqlFile($path);
-	}
-
-	// ── SQL execution ─────────────────────────────────────────────────────────
-	//
-	// Reads a .php backup file and executes every SQL statement it contains.
-	// The PHP_GUARD line is skipped automatically -- it is not valid SQL and
-	// does not end with a semicolon, so the accumulator never fires on it.
-	// SQL comments (--) are also skipped.
-	// Conditional comments from Utils::dumpDatabase are sent to db->query()
-	// as-is; MySQL executes them when server version >= NNN.
-
-	public function execSqlFile(string $path): array
-	{
-		if (!file_exists($path)) {
-			return ['ok' => 0, 'errors' => ['File not found: ' . basename($path)]];
-		}
-
-		$ok       = 0;
-		$errors   = [];
-		$stmt     = '';
-		$in_delim = false;
-
-		$this->db->begin();
-
-		foreach (file($path) as $raw_line) {
-			$t = trim($raw_line);
-
-			if ($t === '')                           continue; // blank
-			if (str_starts_with($t, '--'))           continue; // SQL comment
-			if (str_starts_with($t, '<?php'))        continue; // PHP die guard
-			if (preg_match('/^DELIMITER\s+/i', $t))  { $in_delim = !$in_delim; continue; }
-			if ($in_delim)                           continue;
-
-			$stmt .= ' ' . $t;
-
-			if (str_ends_with(rtrim($t), ';')) {
-				$clean = trim($stmt);
-				// Replace default llx_ prefix with configured MAIN_DB_PREFIX
-				if (MAIN_DB_PREFIX !== 'llx_') {
-					$clean = str_replace('llx_', MAIN_DB_PREFIX, $clean);
-				}
-				if ($clean !== '') {
-					$res = $this->db->query($clean);
-					if ($res === false) {
-						$errors[] = $this->db->lasterror() . ' -- ' . substr($clean, 0, 120);
-					} else {
-						$ok++;
-					}
-				}
-				$stmt = '';
+		$count = 0;
+		foreach (explode("\n", $content) as $line) {
+			if (stripos(ltrim($line), 'INSERT INTO') === 0) {
+				$count += substr_count($line, '),(') + 1;
 			}
 		}
-
-		if (!empty($errors)) {
-			$this->db->rollback();
-		} else {
-			$this->db->commit();
-		}
-
-		return ['ok' => $ok, 'errors' => $errors];
+		return $count;
 	}
 
-	public function runSeed(): array  { return $this->execSqlFile($this->seed_sql);  }
-	public function runReset(): array { return $this->execSqlFile($this->reset_sql); }
-
-	// ── Retention ─────────────────────────────────────────────────────────────
-
-	private function enforceRetention(string $label): void
+	private function enforceRetentionDb(string $label, int $entity): void
 	{
-		$files = glob($this->backup_dir . '/' . $label . '_*.php') ?: [];
-		$files = array_filter($files, fn($f) => !str_ends_with($f, '.sha256'));
-		usort($files, fn($a, $b) => filemtime($b) - filemtime($a));
-		foreach (array_slice($files, $this->max_backups) as $old) {
-			@unlink($old);
-			@unlink($old . '.sha256');
-		}
+		$this->purgeByLabel($label, $this->max_backups, $entity);
 	}
 
-	public function purgeByType(string $type, int $keep = 0): int
+	private function loadManifest(int $entity = 1): array
 	{
-		$files = glob($this->backup_dir . '/' . $type . '_*.php') ?: [];
-		$files = array_filter($files, fn($f) => !str_ends_with($f, '.sha256'));
-		usort($files, fn($a, $b) => filemtime($b) - filemtime($a));
-		$purged = 0;
-		foreach (array_slice($files, $keep) as $f) {
-			@unlink($f);
-			@unlink($f . '.sha256');
-			$purged++;
-		}
-		return $purged;
-	}
+		$mtbl = MAIN_DB_PREFIX . 'mokodolitraining_manifest';
+		$sql  = "SELECT table_name, record_id FROM `{$mtbl}` WHERE entity = " . (int) $entity
+			  . " ORDER BY table_name, record_id";
+		$res  = $this->db->query($sql);
+		if (!$res) return [];
 
-	// ── Listing / lookup ──────────────────────────────────────────────────────
-
-	public function listBackups(): array
-	{
-		if (!is_dir($this->backup_dir)) return [];
-		$files = glob($this->backup_dir . '/*.php') ?: [];
-		// Exclude the stub index.php and any .sha256 sidecar files
-		$files = array_filter($files, fn($f) => (
-			!str_ends_with($f, '.sha256')
-			&& basename($f) !== 'index.php'
-		));
-		$out = [];
-		foreach ($files as $f) {
-			$name = basename($f);
-			preg_match('/^(rollback|snapshot)_(\d{8}_\d{6})\.php$/', $name, $m);
-			$sha_path = $f . '.sha256';
-			$out[] = [
-				'path'     => $f,
-				'name'     => $name,
-				'type'     => $m[1] ?? 'unknown',
-				'ts'       => isset($m[2])
-					? substr($m[2], 0, 4) . '-' . substr($m[2], 4, 2) . '-' . substr($m[2], 6, 2)
-					  . 'T' . substr($m[2], 9, 2) . ':' . substr($m[2], 11, 2) . ':' . substr($m[2], 13, 2) . 'Z'
-					: '',
-				'size'     => filesize($f),
-				'mtime'    => filemtime($f),
-				'checksum' => file_exists($sha_path) ? trim(file_get_contents($sha_path)) : null,
-				'has_sha'  => file_exists($sha_path),
-			];
-		}
-		usort($out, fn($a, $b) => $b['mtime'] - $a['mtime']);
-		return $out;
-	}
-
-	public function getLatest(string $type): ?string
-	{
-		foreach ($this->listBackups() as $b) {
-			if ($b['type'] === $type) return $b['path'];
-		}
-		return null;
-	}
-
-	public function getBackupByName(string $name): ?string
-	{
-		$path = $this->backup_dir . '/' . basename($name);
-		return (file_exists($path) && str_ends_with($path, '.php')) ? $path : null;
-	}
-
-	public function getBackupDir(): string
-	{
-		return $this->backup_dir;
-	}
-
-	// ── Helpers ───────────────────────────────────────────────────────────────
-
-	private function loadManifest(): array
-	{
-		if (!file_exists($this->manifest_path)) return [];
-		$raw = json_decode(file_get_contents($this->manifest_path), true);
-		$tables = is_array($raw['tables'] ?? null) ? $raw['tables'] : [];
-
-		// Replace llx_ prefix in manifest keys with the configured MAIN_DB_PREFIX
-		$prefix = MAIN_DB_PREFIX;
-		if ($prefix !== 'llx_') {
-			$out = [];
-			foreach ($tables as $tbl => $rowids) {
-				$out[preg_replace('/^llx_/', $prefix, $tbl)] = $rowids;
-			}
-			return $out;
+		$tables = [];
+		while ($row = $this->db->fetch_object($res)) {
+			$tbl = (MAIN_DB_PREFIX !== 'llx_')
+				? preg_replace('/^llx_/', MAIN_DB_PREFIX, $row->table_name)
+				: $row->table_name;
+			$tables[$tbl][] = (int) $row->record_id;
 		}
 		return $tables;
 	}

@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/logs.php
- * VERSION:  01.02.00
+ * VERSION:  development
  * BRIEF:    Audit log viewer with filter, stats, and purge controls.
  */
 
@@ -22,7 +22,7 @@ if (!$res) die('Include of main fails');
 require_once DOL_DOCUMENT_ROOT . '/core/lib/admin.lib.php';
 dol_include_once('/mokodolitraining/lib/mokodolitraining.lib.php');
 
-if (!$user->admin) accessforbidden();
+if (!mokodolitraining_has_perm($user, 'manage')) accessforbidden();
 
 $langs->load('mokodolitraining@mokodolitraining');
 $action = GETPOST('action', 'aZ09');
@@ -113,6 +113,17 @@ if (empty($log_rows)) {
 		$langs->trans('LogNote')
 	);
 
+	$action_labels = [
+		'class_create'   => $langs->trans('AuditClassCreate'),
+		'class_update'   => $langs->trans('AuditClassUpdate'),
+		'class_delete'   => $langs->trans('AuditClassDelete'),
+		'class_activate' => $langs->trans('AuditClassActivate'),
+		'class_close'    => $langs->trans('AuditClassClose'),
+		'enroll'         => $langs->trans('AuditEnroll'),
+		'unenroll'       => $langs->trans('AuditUnenroll'),
+		'trainee_create' => $langs->trans('AuditTraineeCreate'),
+	];
+
 	foreach ($log_rows as $row) {
 		// format date
 		$date_disp = $row['datec']
@@ -151,7 +162,7 @@ if (empty($log_rows)) {
 			. '</tr>',
 			$date_disp,
 			dol_htmlentities($row['login'] ?: 'cron'),
-			dol_htmlentities($row['action']),
+			dol_htmlentities($action_labels[$row['action']] ?? $row['action']),
 			mokodolitraining_badge_status($row['status']),
 			(int) $row['rows_affected'],
 			$dur_disp,

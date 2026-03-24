@@ -1,0 +1,298 @@
+/**
+ * Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * DEFGROUP: MokoDoliTraining.Tour
+ * INGROUP:  MokoDoliTraining
+ * PATH:     /src/css/mokodolitraining-tour.css
+ * VERSION:  development
+ * BRIEF:    Styles for the MokoDoliTraining step-by-step walkthrough tour.
+ *           Uses high z-index values to layer over Dolibarr's own modals.
+ *           All selectors are prefixed with #mdt- or .mdt- to avoid conflicts.
+ */
+
+/* ── Custom properties ────────────────────────────────────────────────────── */
+
+:root {
+	--mdt-primary:    #4a6df5;
+	--mdt-primary-dk: #3657d4;
+	--mdt-success:    #28a745;
+	--mdt-warning:    #f59c00;
+	--mdt-white:      #ffffff;
+	--mdt-bg:         #ffffff;
+	--mdt-border:     #dee2e6;
+	--mdt-text:       #212529;
+	--mdt-muted:      #6c757d;
+	--mdt-trainer-bg: #fffbe6;
+	--mdt-trainer-bdr:#f59c00;
+	--mdt-shadow:     0 8px 32px rgba(0, 0, 0, 0.20), 0 2px 8px rgba(0, 0, 0, 0.12);
+	--mdt-radius:     10px;
+	--mdt-card-width: 370px;
+	--mdt-z-backdrop: 9990;
+	--mdt-z-highlight:9995;
+	--mdt-z-card:    10000;
+}
+
+/* ── Backdrop — dims the page when a spotlight is active ────────────────── */
+
+body.mdt-tour-active::after {
+	content: '';
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.38);
+	z-index: var(--mdt-z-backdrop);
+	pointer-events: none;
+}
+
+/* ── Spotlight highlight ────────────────────────────────────────────────── */
+/* Box-shadow trick: inner coloured ring + massive outer shadow = spotlight  */
+
+.mdt-highlighted {
+	position: relative !important;
+	z-index: var(--mdt-z-highlight) !important;
+	box-shadow:
+		0 0 0 4px var(--mdt-primary),
+		0 0 0 8px rgba(74, 109, 245, 0.20),
+		0 0 0 9999px rgba(0, 0, 0, 0.38) !important;
+	border-radius: 4px !important;
+	outline: none !important;
+	transition: box-shadow 0.2s ease;
+}
+
+/* ── Tour card ──────────────────────────────────────────────────────────── */
+
+#mdt-tour-card {
+	position: fixed;
+	bottom: 24px;
+	right: 24px;
+	width: var(--mdt-card-width);
+	max-width: calc(100vw - 32px);
+	background: var(--mdt-bg);
+	border: 1px solid var(--mdt-border);
+	border-radius: var(--mdt-radius);
+	box-shadow: var(--mdt-shadow);
+	z-index: var(--mdt-z-card);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 14px;
+	color: var(--mdt-text);
+	overflow: hidden;
+	animation: mdt-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes mdt-slide-up {
+	from { transform: translateY(16px); opacity: 0; }
+	to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Card header ────────────────────────────────────────────────────────── */
+
+.mdt-card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 14px;
+	background: var(--mdt-primary);
+	color: var(--mdt-white);
+	min-height: 44px;
+}
+
+.mdt-card-header-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.mdt-step-badge {
+	flex-shrink: 0;
+	background: rgba(255, 255, 255, 0.22);
+	color: var(--mdt-white);
+	border-radius: 20px;
+	padding: 2px 9px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.3px;
+	white-space: nowrap;
+}
+
+.mdt-exercise-title {
+	font-weight: 600;
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
+}
+
+.mdt-close-btn {
+	flex-shrink: 0;
+	background: none;
+	border: none;
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 2px 5px;
+	border-radius: 4px;
+	transition: color 0.15s, background 0.15s;
+}
+.mdt-close-btn:hover {
+	color: var(--mdt-white);
+	background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Card body ──────────────────────────────────────────────────────────── */
+
+.mdt-card-body {
+	padding: 14px 16px 10px;
+}
+
+.mdt-step-heading {
+	margin: 0 0 6px;
+	font-weight: 700;
+	font-size: 15px;
+	color: var(--mdt-text);
+	line-height: 1.3;
+}
+
+.mdt-step-text {
+	margin: 0;
+	color: #444;
+	line-height: 1.6;
+	font-size: 13.5px;
+}
+
+/* ── Trainer note ───────────────────────────────────────────────────────── */
+
+.mdt-trainer-note {
+	margin-top: 10px;
+	padding: 8px 12px;
+	background: var(--mdt-trainer-bg);
+	border-left: 3px solid var(--mdt-trainer-bdr);
+	border-radius: 0 4px 4px 0;
+	font-size: 12.5px;
+	color: #5a4500;
+	line-height: 1.5;
+}
+
+.mdt-trainer-label {
+	font-weight: 700;
+}
+
+/* ── Card footer ────────────────────────────────────────────────────────── */
+
+.mdt-card-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 14px;
+	border-top: 1px solid var(--mdt-border);
+	background: #f8f9fa;
+}
+
+.mdt-footer-right {
+	justify-content: flex-end;
+}
+
+/* ── Dot progress ───────────────────────────────────────────────────────── */
+
+.mdt-dots {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+}
+
+.mdt-dot {
+	width: 7px;
+	height: 7px;
+	background: #d0d5dd;
+	border-radius: 50%;
+	display: inline-block;
+	transition: background 0.18s, width 0.18s, border-radius 0.18s;
+}
+
+.mdt-dot-active {
+	background: var(--mdt-primary);
+	width: 20px;
+	border-radius: 3.5px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.mdt-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 14px;
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.4;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	cursor: pointer;
+	text-decoration: none;
+	transition: background 0.14s, color 0.14s, border-color 0.14s;
+	white-space: nowrap;
+}
+
+.mdt-btn-primary {
+	background: var(--mdt-primary);
+	color: var(--mdt-white) !important;
+	border-color: var(--mdt-primary);
+}
+.mdt-btn-primary:hover,
+.mdt-btn-primary:focus {
+	background: var(--mdt-primary-dk);
+	border-color: var(--mdt-primary-dk);
+	color: var(--mdt-white) !important;
+}
+
+.mdt-btn-ghost {
+	background: transparent;
+	color: var(--mdt-muted);
+	border-color: var(--mdt-border);
+}
+.mdt-btn-ghost:hover {
+	background: #f0f0f0;
+	color: var(--mdt-text);
+}
+
+/* ── Completion toast ───────────────────────────────────────────────────── */
+
+#mdt-tour-toast {
+	position: fixed;
+	bottom: 24px;
+	right: 24px;
+	padding: 12px 20px;
+	background: var(--mdt-success);
+	color: var(--mdt-white);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	border-radius: 8px;
+	box-shadow: 0 4px 18px rgba(40, 167, 69, 0.35);
+	z-index: var(--mdt-z-card);
+	animation: mdt-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+	           mdt-fade-out 0.4s 3.4s ease-in forwards;
+}
+
+@keyframes mdt-fade-out {
+	to { opacity: 0; transform: translateY(8px); }
+}
+
+/* ── Responsive: move card to bottom-centre on narrow screens ───────────── */
+
+@media (max-width: 480px) {
+	#mdt-tour-card,
+	#mdt-tour-toast {
+		right: 8px;
+		left: 8px;
+		bottom: 12px;
+		width: auto;
+		max-width: none;
+	}
+}
