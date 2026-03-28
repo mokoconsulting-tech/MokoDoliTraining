@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-dev.yml
-# VERSION: 04.00.25
+# VERSION: 04.01.09
 # BRIEF: SFTP deployment workflow for development server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-dev.yml in all governed repos.
 #       Port is resolved in order: DEV_FTP_PORT variable → :port suffix in DEV_FTP_HOST → 22.
@@ -35,14 +35,11 @@ name: Deploy to Dev Server (SFTP)
 #
 # Required org-level variables:  DEV_FTP_HOST, DEV_FTP_PATH, DEV_FTP_USERNAME
 # Optional org-level variable:   DEV_FTP_PORT (auto-detected from host or defaults to 22)
-# Optional org/repo variable:    DEV_FTP_PATH_SUFFIX
-# Optional org/repo variable:    CUSTOM_FOLDER — when set, appended to the remote path after
-#                                 DEV_FTP_PATH_SUFFIX; used automatically for Dolibarr modules
-# Optional org/repo variable:    FTP_IGNORE — comma-delimited list of regex patterns, each enclosed in
-#                                 double quotes, for files/paths to exclude from upload, e.g.:
-#                                   "\.git*", "\.DS_Store", "configuration\.php", "\.ps1"
-#                                 Patterns are tested against the forward-slash relative path of each
-#                                 file (e.g. "subdir/file.txt"). The repository .gitignore is also
+# Optional org/repo variable:    DEV_FTP_SUFFIX — when set, appended to DEV_FTP_PATH to form the
+#                                 full remote destination: DEV_FTP_PATH/DEV_FTP_SUFFIX
+# Ignore rules:                  Place a .ftp_ignore file in the repository root. Each non-empty,
+#                                 non-comment line is a regex pattern tested against the relative path
+#                                 of each file (e.g. "subdir/file.txt"). The .gitignore is also
 #                                 respected automatically.
 # Required org-level secret:     DEV_FTP_KEY (preferred) or DEV_FTP_PASSWORD
 #
@@ -51,21 +48,19 @@ name: Deploy to Dev Server (SFTP)
 on:
   push:
     branches:
-      - main
-      - master
+      - 'dev/**'
       - develop
-      - dev
       - development
     paths:
       - 'src/**'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
-      - main
-      - master
+      - 'dev/**'
       - develop
-      - dev
       - development
+    paths:
+      - 'src/**'
   workflow_dispatch:
     inputs:
       clear_remote:
@@ -77,6 +72,9 @@ on:
 permissions:
   contents: read
   pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   check-permission:
@@ -94,52 +92,82 @@ jobs:
           REPO="${{ github.repository }}"
           ORG="${{ github.repository_owner }}"
 
-          # Try the per-repo collaborator endpoint first.
-          # This returns 404 for org owners who are not listed as explicit
-          # collaborators, so we fall back to the org membership role check.
-          PERMISSION=$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" \
-            --jq '.permission' 2>/dev/null)
+          METHOD=""
+          AUTHORIZED="false"
 
-          if [ -z "$PERMISSION" ]; then
-            # Collaborator endpoint returned nothing — try org membership.
-            # Requires a token with read:org scope (secrets.GH_TOKEN).
-            # github.token alone is insufficient for this endpoint.
-            ORG_ROLE=$(gh api "orgs/${ORG}/memberships/${ACTOR}" \
-              --jq '.role' 2>/dev/null)
-            if [ "$ORG_ROLE" = "owner" ]; then
+          # Hardcoded authorized users — always allowed to deploy
+          AUTHORIZED_USERS="jmiller-moko github-actions[bot]"
+          for user in $AUTHORIZED_USERS; do
+            if [ "$ACTOR" = "$user" ]; then
+              AUTHORIZED="true"
+              METHOD="hardcoded allowlist"
               PERMISSION="admin"
-              echo "ℹ️  ${ACTOR} is an org owner — granting admin access"
-            else
-              # Both checks failed — token may lack read:org scope.
-              echo "⚠️  Could not determine permission for ${ACTOR}."
-              echo "   Add GH_TOKEN (PAT with read:org scope) as an org secret to fix this."
-              PERMISSION="none"
+              break
             fi
+          done
+
+          # For other actors, check repo/org permissions via API
+          if [ "$AUTHORIZED" != "true" ]; then
+            PERMISSION=$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" \
+              --jq '.permission' 2>/dev/null)
+            METHOD="repo collaborator API"
+
+            if [ -z "$PERMISSION" ]; then
+              ORG_ROLE=$(gh api "orgs/${ORG}/memberships/${ACTOR}" \
+                --jq '.role' 2>/dev/null)
+              METHOD="org membership API"
+              if [ "$ORG_ROLE" = "owner" ]; then
+                PERMISSION="admin"
+              else
+                PERMISSION="none"
+              fi
+            fi
+
+            case "$PERMISSION" in
+              admin|maintain) AUTHORIZED="true" ;;
+            esac
           fi
 
-          case "$PERMISSION" in
-            admin|maintain)
-              echo "✅ ${ACTOR} has '${PERMISSION}' permission — authorized to deploy"
-              ;;
-            *)
-              echo "❌ Deployment requires admin or maintain role."
-              echo "   ${ACTOR} has '${PERMISSION}' — contact your org administrator."
-              exit 1
-              ;;
-          esac
+          # Write detailed summary
+          {
+            echo "## 🔐 Deploy Authorization"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| **Actor** | \`${ACTOR}\` |"
+            echo "| **Repository** | \`${REPO}\` |"
+            echo "| **Permission** | \`${PERMISSION}\` |"
+            echo "| **Method** | ${METHOD} |"
+            echo "| **Authorized** | ${AUTHORIZED} |"
+            echo "| **Trigger** | \`${{ github.event_name }}\` |"
+            echo "| **Branch** | \`${{ github.ref_name }}\` |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$AUTHORIZED" = "true" ]; then
+            echo "✅ ${ACTOR} authorized to deploy (${METHOD})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ ${ACTOR} is NOT authorized to deploy." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployment requires one of:" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Being in the hardcoded allowlist" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Having \`admin\` or \`maintain\` role on the repository" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
   deploy:
     name: SFTP Deploy → Dev
     runs-on: ubuntu-latest
     needs: [check-permission]
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.head_ref || github.ref_name, 'chore/') &&
+      (github.event_name == 'workflow_dispatch' ||
       github.event_name == 'push' ||
       (github.event_name == 'pull_request' &&
         (github.event.action == 'opened' ||
          github.event.action == 'synchronize' ||
          github.event.action == 'reopened' ||
-         github.event.pull_request.merged == true))
+         github.event.pull_request.merged == true)))
 
     steps:
       - name: Checkout repository
@@ -163,15 +191,47 @@ jobs:
         if: steps.source.outputs.skip == 'false'
         env:
           SOURCE_DIR: ${{ steps.source.outputs.dir }}
-          FTP_IGNORE: ${{ vars.FTP_IGNORE }}
         run: |
-          # ── Parse FTP_IGNORE ─────────────────────────────────────────────────
+          # ── Convert a gitignore-style glob line to an ERE pattern ──────────────
+          ftp_ignore_to_regex() {
+            local line="$1"
+            local anchored=false
+            # Strip inline comments and whitespace
+            line=$(printf '%s' "$line" | sed 's/[[:space:]]*#.*$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [ -z "$line" ] && return
+            # Skip negation patterns (not supported)
+            [[ "$line" == !* ]] && return
+            # Trailing slash = directory marker; strip it
+            line="${line%/}"
+            # Leading slash = anchored to root; strip it
+            if [[ "$line" == /* ]]; then
+              anchored=true
+              line="${line#/}"
+            fi
+            # Escape ERE special chars, then restore glob semantics
+            local regex
+            regex=$(printf '%s' "$line" \
+              | sed 's/[.+^${}()|[\\]/\\&/g' \
+              | sed 's/\\\*\\\*/\x01/g' \
+              | sed 's/\\\*/[^\/]*/g' \
+              | sed 's/\x01/.*/g' \
+              | sed 's/\\\?/[^\/]/g')
+            if $anchored; then
+              printf '^%s(/|$)' "$regex"
+            else
+              printf '(^|/)%s(/|$)' "$regex"
+            fi
+          }
+
+          # ── Read .ftp_ignore (gitignore-style globs) ─────────────────────────
           IGNORE_PATTERNS=()
-          if [ -n "$FTP_IGNORE" ]; then
-            while IFS= read -r -d ',' token; do
-              pattern=$(printf '%s' "$token" | sed 's/^[[:space:]]*"//;s/"[[:space:]]*$//')
-              [ -n "$pattern" ] && IGNORE_PATTERNS+=("$pattern")
-            done <<< "${FTP_IGNORE},"
+          IGNORE_SOURCES=()
+          if [ -f ".ftp_ignore" ]; then
+            while IFS= read -r line; do
+              [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+              regex=$(ftp_ignore_to_regex "$line")
+              [ -n "$regex" ] && IGNORE_PATTERNS+=("$regex") && IGNORE_SOURCES+=("$line")
+            done < ".ftp_ignore"
           fi
 
           # ── Walk src/ and classify every file ────────────────────────────────
@@ -180,16 +240,18 @@ jobs:
           while IFS= read -r -d '' file; do
             rel="${file#${SOURCE_DIR}/}"
             SKIP=false
-            for pat in "${IGNORE_PATTERNS[@]}"; do
-              if echo "$rel" | grep -qE "$pat" 2>/dev/null; then
-                IGNORED_FILES+=("$rel | FTP_IGNORE \`$pat\`")
+            for i in "${!IGNORE_PATTERNS[@]}"; do
+              if echo "$rel" | grep -qE "${IGNORE_PATTERNS[$i]}" 2>/dev/null; then
+                IGNORED_FILES+=("$rel | .ftp_ignore \`${IGNORE_SOURCES[$i]}\`")
                 SKIP=true; break
               fi
             done
             $SKIP && continue
-            if [ -f ".gitignore" ] && git check-ignore -q "$rel" 2>/dev/null; then
-              IGNORED_FILES+=("$rel | .gitignore")
-              continue
+            if [ -f ".gitignore" ]; then
+              git check-ignore -q "$rel" 2>/dev/null && {
+                IGNORED_FILES+=("$rel | .gitignore")
+                continue
+              } || true
             fi
             WILL_UPLOAD+=("$rel")
           done < <(find "$SOURCE_DIR" -type f -print0 | sort -z)
@@ -262,13 +324,10 @@ jobs:
         if: steps.source.outputs.skip == 'false'
         id: remote
         env:
-          DEV_FTP_PATH:        ${{ vars.DEV_FTP_PATH }}
-          DEV_FTP_PATH_SUFFIX: ${{ vars.DEV_FTP_PATH_SUFFIX }}
-          CUSTOM_FOLDER:       ${{ vars.CUSTOM_FOLDER }}
+          DEV_FTP_PATH: ${{ vars.DEV_FTP_PATH }}
+          DEV_FTP_SUFFIX:  ${{ vars.DEV_FTP_SUFFIX }}
         run: |
           BASE="$DEV_FTP_PATH"
-          SUFFIX="$DEV_FTP_PATH_SUFFIX"
-          CUSTOM="$CUSTOM_FOLDER"
 
           if [ -z "$BASE" ]; then
             echo "❌ DEV_FTP_PATH is not set."
@@ -277,24 +336,50 @@ jobs:
             exit 1
           fi
 
-          # Always append suffix when set — path is BASE/SUFFIX
-          if [ -n "$SUFFIX" ]; then
-            REMOTE="${BASE%/}/${SUFFIX#/}"
-          else
-            REMOTE="$BASE"
+          # DEV_FTP_SUFFIX is required — it identifies the remote subdirectory for this repo.
+          # Without it we cannot safely determine the deployment target.
+          if [ -z "$DEV_FTP_SUFFIX" ]; then
+            echo "⏭️  DEV_FTP_SUFFIX variable is not set — skipping deployment."
+            echo "   Set DEV_FTP_SUFFIX as a repo or org variable to enable deploy-dev."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          # Append CUSTOM_FOLDER when set — makes Dolibarr module paths automatic
-          if [ -n "$CUSTOM" ]; then
-            REMOTE="${REMOTE%/}/${CUSTOM#/}"
-            echo "ℹ️  CUSTOM_FOLDER appended: ${CUSTOM}"
+          REMOTE="${BASE%/}/${DEV_FTP_SUFFIX#/}"
+
+          # ── Platform-specific path safety guards ──────────────────────────────
+          PLATFORM=""
+          if [ -f ".moko-standards" ]; then
+            PLATFORM=$(grep -E '^platform:' .moko-standards | sed 's/.*:[[:space:]]*//' | tr -d '"')
           fi
 
+          if [ "$PLATFORM" = "crm-module" ]; then
+            # Dolibarr modules must deploy under htdocs/custom/ — guard against
+            # accidentally overwriting server root or unrelated directories.
+            if [[ "$REMOTE" != *custom* ]]; then
+              echo "❌ Safety check failed: Dolibarr (crm-module) remote path must contain 'custom'."
+              echo "   Current path: ${REMOTE}"
+              echo "   Set DEV_FTP_SUFFIX to the module's htdocs/custom/ subdirectory."
+              exit 1
+            fi
+          fi
+
+          if [ "$PLATFORM" = "waas-component" ]; then
+            # Joomla extensions may only deploy to the server's tmp/ directory.
+            if [[ "$REMOTE" != *tmp* ]]; then
+              echo "❌ Safety check failed: Joomla (waas-component) remote path must contain 'tmp'."
+              echo "   Current path: ${REMOTE}"
+              echo "   Set DEV_FTP_SUFFIX to a path under the server tmp/ directory."
+              exit 1
+            fi
+          fi
+
+          echo "ℹ️  Remote path: ${REMOTE}"
           echo "path=${REMOTE}" >> "$GITHUB_OUTPUT"
-          echo "Remote path: ${REMOTE}"
 
       - name: Detect SFTP authentication method
-        if: steps.source.outputs.skip == 'false'
+        if: steps.source.outputs.skip == 'false' && steps.remote.outputs.skip != 'true'
         id: auth
         env:
           HAS_KEY:      ${{ secrets.DEV_FTP_KEY }}
@@ -326,14 +411,14 @@ jobs:
           fi
 
       - name: Setup PHP
-        if: steps.source.outputs.skip == 'false'
+        if: steps.source.outputs.skip == 'false' && steps.remote.outputs.skip != 'true'
         uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # v2.31.0
         with:
           php-version: '8.1'
           tools: composer
 
       - name: Setup MokoStandards deploy tools
-        if: steps.source.outputs.skip == 'false'
+        if: steps.source.outputs.skip == 'false' && steps.remote.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GH_TOKEN || github.token }}"}}'
@@ -345,9 +430,7 @@ jobs:
           composer install --no-dev --no-interaction --quiet
 
       - name: Clear remote destination folder
-        if: >-
-          steps.source.outputs.skip == 'false' &&
-          inputs.clear_remote == true
+        if: steps.source.outputs.skip == 'false' && steps.remote.outputs.skip != 'true'
         env:
           SFTP_HOST:      ${{ steps.conn.outputs.host }}
           SFTP_PORT:      ${{ steps.conn.outputs.port }}
@@ -449,7 +532,7 @@ jobs:
           php /tmp/moko_clear.php
 
       - name: Deploy via SFTP
-        if: steps.source.outputs.skip == 'false'
+        if: steps.source.outputs.skip == 'false' && steps.remote.outputs.skip != 'true'
         env:
           SFTP_HOST:       ${{ steps.conn.outputs.host }}
           SFTP_PORT:       ${{ steps.conn.outputs.port }}
@@ -492,6 +575,25 @@ jobs:
           DEPLOY_ARGS=(--path . --src-dir "$SOURCE_DIR" --config /tmp/sftp-config.json)
           if [ "$USE_PASSPHRASE" = "true" ]; then
             DEPLOY_ARGS+=(--key-passphrase "$SFTP_PASSWORD")
+          fi
+
+          # ── For Dolibarr (crm-module): set version to "development" before deploy ─
+          PLATFORM=""
+          if [ -f ".moko-standards" ]; then
+            PLATFORM=$(grep -E '^platform:' .moko-standards | sed 's/.*:[[:space:]]*//' | tr -d '"')
+          fi
+
+          if [ "$PLATFORM" = "crm-module" ]; then
+            echo "📦 Dolibarr dev deploy — setting module version to 'development'"
+            find "$SOURCE_DIR" -path "*/core/modules/mod*.class.php" -exec \
+              sed -i "s/\(\$this->version\s*=\s*\)['\"][^'\"]*['\"]/\1'development'/" {} + 2>/dev/null || true
+          fi
+
+          if [ "$PLATFORM" = "waas-component" ]; then
+            echo "📦 Joomla dev deploy — setting manifest version to 'development'"
+            find "$SOURCE_DIR" -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | while read -r manifest; do
+              sed -i "s|<version>[^<]*</version>|<version>development</version>|" "$manifest" 2>/dev/null || true
+            done
           fi
 
           php /tmp/mokostandards/api/deploy/deploy-sftp.php "${DEPLOY_ARGS[@]}"
