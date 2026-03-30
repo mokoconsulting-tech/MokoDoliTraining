@@ -3,23 +3,9 @@ name: Dolibarr Module ID Request
 about: Request a unique module ID for a Dolibarr module
 title: '[MODULE ID] '
 labels: ['dolibarr', 'module-id-request', 'admin']
-assignees: []
+assignees: ['jmiller-moko']
 ---
 
-<!--
-SPDX-License-Identifier: GPL-3.0-or-later
-Copyright (C) 2024-2026 Moko Consulting Tech
-
-File: .github/ISSUE_TEMPLATE/dolibarr_module_id_request.md
-Description: Issue template for requesting Dolibarr module IDs
-Project: .github-private
-Author: Moko Consulting Tech
-Version: 03.02.00
-
-Revision History:
-- 2026-01-16: Initial creation for Dolibarr module ID requests
-- 2026-03-11: Version bump to 03.02.00 to match MokoStandards
--->
 
 ## Module ID Request
 
