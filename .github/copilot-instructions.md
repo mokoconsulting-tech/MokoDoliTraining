@@ -105,10 +105,55 @@ BRIEF: One-line description
 
 The version in `README.md` **must always match** the `$this->version` property in the main module descriptor class (`src/core/modules/modMokoDoliTraining.class.php`).
 
+- On `dev/**` branches: `$this->version = 'development'` (set automatically by deploy-dev workflow)
+- On merge to main: `$this->version` is set to the real version by the auto-release workflow
+- **Never manually set `$this->version`** — the workflows handle it
+
+### Module Update Server (update.txt)
+
+Every Dolibarr module must wire up `$this->url_last_version` so the admin panel can check for updates.
+
+**In `src/core/modules/modMokoDoliTraining.class.php` constructor**, add:
+
 ```php
-// In src/core/modules/modMokoDoliTraining.class.php
-public $version = '01.02.04';  // Must match README.md version
+$this->version = 'development';
+$this->url_last_version = 'https://raw.githubusercontent.com/mokoconsulting-tech/MokoDoliTraining/main/update.txt';
 ```
+
+**How it works:**
+1. The `auto-release.yml` workflow writes `update.txt` to the repo root on every GitHub Release
+2. `update.txt` contains the latest version from `README.md`
+3. Dolibarr fetches `$this->url_last_version` and compares against the installed version
+
+**Add this method** to the module descriptor to parse the JSON response:
+
+```php
+public function getLatestVersion(): string
+{
+    if (empty($this->url_last_version)) {
+        return '';
+    }
+    $content = @file_get_contents($this->url_last_version);
+    if ($content === false) {
+        return '';
+    }
+    $data = json_decode($content, true);
+    return $data['version'] ?? '';
+}
+```
+
+**update.txt format** (auto-generated, do not edit manually):
+```json
+{
+  "version": "01.02.03",
+  "tag": "v01.02.03",
+  "repo": "mokoconsulting-tech/MokoDoliTraining",
+  "release_url": "https://github.com/mokoconsulting-tech/MokoDoliTraining/releases/tag/v01.02.03",
+  "updated": "2026-03-27T00:00:00Z"
+}
+```
+
+Full guide: [docs/guide/crm/dolibarr-update-check.md](https://github.com/mokoconsulting-tech/MokoStandards/blob/main/docs/guide/crm/dolibarr-update-check.md)
 
 ---
 
