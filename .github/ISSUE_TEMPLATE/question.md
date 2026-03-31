@@ -3,13 +3,9 @@ name: Question
 about: Ask a question about usage, features, or best practices
 title: '[QUESTION] '
 labels: ['question']
-assignees: []
+assignees: ['jmiller-moko']
 ---
 
-<!--
-Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
-SPDX-License-Identifier: GPL-3.0-or-later
--->
 
 ## Question
 
