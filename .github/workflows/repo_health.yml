@@ -10,7 +10,7 @@
 # INGROUP: MokoStandards.Validation
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /.github/workflows/repo_health.yml
-# VERSION: 04.03.00
+# VERSION: 04.04.01
 # BRIEF: Dolibarr module health checks — validates release config, module descriptor, repo artifacts, and scripts governance.
 # NOTE: Field is user-managed.
 # ============================================================================
@@ -56,7 +56,7 @@ env:
 
   # Repo health policy
   # Files are listed as-is; directories must end with a trailing slash.
-  REPO_REQUIRED_ARTIFACTS: README.md,LICENSE,CHANGELOG.md,CONTRIBUTING.md,CODE_OF_CONDUCT.md,.github/workflows/,src/,src/core/modules/
+  REPO_REQUIRED_ARTIFACTS: README.md,LICENSE,CHANGELOG.md,CONTRIBUTING.md,CODE_OF_CONDUCT.md,.github/workflows/
   REPO_OPTIONAL_FILES: SECURITY.md,GOVERNANCE.md,.editorconfig,.gitattributes,.gitignore,docs/,update.txt
   REPO_DISALLOWED_DIRS:
   REPO_DISALLOWED_FILES: TODO.md,todo.md,update.json
@@ -70,8 +70,6 @@ env:
   WORKFLOWS_DIR: .github/workflows
   SHELLCHECK_PATTERN: '*.sh'
   SPDX_FILE_GLOBS: '*.sh,*.php,*.js,*.ts,*.css,*.xml,*.yml,*.yaml'
-
-env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -403,6 +401,15 @@ jobs:
             exit 0
           fi
 
+          # Source directory: src/ or htdocs/ (either is valid)
+          if [ -d "src" ]; then
+            SOURCE_DIR="src"
+          elif [ -d "htdocs" ]; then
+            SOURCE_DIR="htdocs"
+          else
+            missing_required+=("src/ or htdocs/ (source directory required)")
+          fi
+
           IFS=',' read -r -a required_artifacts <<< "${REPO_REQUIRED_ARTIFACTS}"
           IFS=',' read -r -a optional_files <<< "${REPO_OPTIONAL_FILES}"
           IFS=',' read -r -a disallowed_dirs <<< "${REPO_DISALLOWED_DIRS}"
@@ -556,7 +563,7 @@ jobs:
           dolibarr_findings=()
 
           # Module descriptor: src/core/modules/mod*.class.php
-          MOD_FILE="$(find src -path '*/core/modules/mod*.class.php' -print -quit 2>/dev/null || true)"
+          MOD_FILE="$(find src htdocs -path '*/core/modules/mod*.class.php' -print -quit 2>/dev/null || true)"
           if [ -z "${MOD_FILE}" ]; then
             dolibarr_findings+=("Module descriptor not found (src/core/modules/mod*.class.php)")
           else
@@ -579,9 +586,9 @@ jobs:
             fi
           fi
 
-          # src/README.md should exist (Dolibarr module store requirement)
-          if [ ! -f 'src/README.md' ]; then
-            dolibarr_findings+=("src/README.md missing (required for Dolibarr module store)")
+          # Source README should exist (Dolibarr module store requirement)
+          if [ -n "${SOURCE_DIR:-}" ] && [ ! -f "${SOURCE_DIR}/README.md" ]; then
+            dolibarr_findings+=("${SOURCE_DIR}/README.md missing (required for Dolibarr module store)")
           fi
 
           # update.txt should exist in root (created by auto-release)
