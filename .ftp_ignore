@@ -42,3 +42,8 @@ scripts/sftp-config/
 scripts/keys/
 *.ppk
 *.pem
+
+# ── MokoStandards sync (auto-appended) ────────────────────────────────
+.mokostandards
+
+# ── Dependency directories ────────────────────────────────────────────────────
