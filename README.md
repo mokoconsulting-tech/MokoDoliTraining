@@ -17,7 +17,7 @@ DEFGROUP: MokoDoliTraining.Docs
 INGROUP:  MokoDoliTraining
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /README.md
-VERSION:  01.00.00
+VERSION:  01.00.01
 BRIEF:    Developer README for the MokoDoliTraining repository.
 -->
 
