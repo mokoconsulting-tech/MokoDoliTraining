@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/core/triggers/interface_99_modMokoDoliTraining_MokoDoliTrainingTrigger.class.php
- * VERSION:  01.00.00
+ * VERSION:  01.00.01
  * BRIEF:    Dolibarr trigger class for MokoDoliTraining audit and safety hooks.
  * NOTE:     Priority 99 ensures this fires last, after all core triggers.
  */

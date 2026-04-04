@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/lib/mokodolitraining.lib.php
- * VERSION:  01.01.00
+ * VERSION:  01.00.01
  * BRIEF:    Shared helpers: tab builder, formatters, class loader, constants accessor.
  */
 

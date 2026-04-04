@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/installation.md
-VERSION:  01.00.00
+VERSION:  01.00.01
 BRIEF:    Installation guide for the MokoDoliTraining module.
 -->
 

@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/setup.php
- * VERSION:  01.03.00
+ * VERSION:  01.00.01
  * BRIEF:    Dashboard: status, backup health, recent activity, settings, dataset actions.
  */
 

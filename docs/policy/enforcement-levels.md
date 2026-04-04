@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Policy
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/policy/enforcement-levels.md
-VERSION:  01.00.00
+VERSION:  01.00.01
 BRIEF:    MokoStandards enforcement tier definitions for MokoDoliTraining.
 -->
 
