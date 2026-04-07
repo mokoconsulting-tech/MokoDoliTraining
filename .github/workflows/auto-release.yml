@@ -7,7 +7,7 @@
 # INGROUP: MokoStandards.Release
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-release.yml.template
-# VERSION: 01.00.04
+# VERSION: 04.05.13
 # BRIEF: Unified build & release pipeline — version branch, platform version, badges, tag, release
 #
 # ╔════════════════════════════════════════════════════════════════════════╗
@@ -23,6 +23,7 @@
 # ║    5. Write update.txt / update.xml                                    ║
 # ║    6. Create git tag vXX.YY.ZZ                                        ║
 # ║    7a. Patch: update existing GitHub Release for this minor            ║
+# ║    8.  Joomla only: build ZIP, upload asset, write SHA-256 to XML     ║
 # ║                                                                        ║
 # ║  Every version change: archives main → version/XX.YY branch            ║
 # ║  Patch 00 = development (no release). First release = patch 01.        ║
@@ -141,6 +142,45 @@ jobs:
           echo "Platform: \`${PLATFORM}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          # ── Version drift check (must pass before release) ─────────
+          README_VER=$(grep -oP 'VERSION:\s*\K[\d.]+' README.md 2>/dev/null | head -1)
+          if [ "$README_VER" != "$VERSION" ]; then
+            echo "❌ Version drift: README says \`${README_VER}\` but releasing \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            ERRORS=$((ERRORS+1))
+          else
+            echo "✅ Version consistent: \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check CHANGELOG version matches
+          CL_VER=$(grep -oP 'VERSION:\s*\K[\d.]+' CHANGELOG.md 2>/dev/null | head -1)
+          if [ -n "$CL_VER" ] && [ "$CL_VER" != "$VERSION" ]; then
+            echo "❌ CHANGELOG drift: \`${CL_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            ERRORS=$((ERRORS+1))
+          fi
+
+          # Check composer.json version if present
+          if [ -f "composer.json" ]; then
+            COMP_VER=$(grep -oP '"version"\s*:\s*"\K[^"]+' composer.json 2>/dev/null | head -1)
+            if [ -n "$COMP_VER" ] && [ "$COMP_VER" != "$VERSION" ]; then
+              echo "❌ composer.json drift: \`${COMP_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+              ERRORS=$((ERRORS+1))
+            fi
+          fi
+
+          # Joomla: check manifest version matches
+          if [ "$PLATFORM" = "waas-component" ]; then
+            MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1)
+            if [ -n "$MANIFEST" ]; then
+              XML_VER=$(grep -oP '<version>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1)
+              if [ -n "$XML_VER" ] && [ "$XML_VER" != "$VERSION" ]; then
+                echo "❌ Manifest drift: \`${XML_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+                ERRORS=$((ERRORS+1))
+              else
+                echo "✅ Manifest version: \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          fi
+
           # Common checks
           if [ ! -f "LICENSE" ]; then
             echo "❌ Missing LICENSE file" >> $GITHUB_STEP_SUMMARY
@@ -149,10 +189,10 @@ jobs:
             echo "✅ LICENSE" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ ! -d "src" ]; then
-            echo "⚠️ No src/ directory" >> $GITHUB_STEP_SUMMARY
+          if [ ! -d "src" ] && [ ! -d "htdocs" ]; then
+            echo "⚠️ No src/ or htdocs/ directory" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ src/ directory" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Source directory" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Dolibarr-specific checks
@@ -425,6 +465,65 @@ jobs:
               echo "🚀 Release created: ${VERSION} (no minor release found)" >> $GITHUB_STEP_SUMMARY
             fi
           fi
+
+      # ── STEP 8: Joomla package + SHA-256 checksum ──────────────────────
+      - name: "Step 8: Build Joomla package and update checksum"
+        if: >-
+          steps.version.outputs.skip != 'true' &&
+          steps.check.outputs.tag_exists != 'true'
+        run: |
+          PLATFORM=$(php /tmp/mokostandards/api/cli/platform_detect.php --path . 2>/dev/null || true)
+          [ "$PLATFORM" != "waas-component" ] && exit 0
+
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          REPO="${{ github.repository }}"
+
+          # Find extension element name from manifest
+          MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1 || true)
+          [ -z "$MANIFEST" ] && exit 0
+
+          EXT_ELEMENT=$(grep -oP '<element>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1 || basename "$MANIFEST" .xml)
+          PACKAGE_NAME="${EXT_ELEMENT}-${VERSION}.zip"
+
+          # ── Build ZIP from src/ ───────────────────────────────────────
+          SOURCE_DIR="src"
+          [ ! -d "$SOURCE_DIR" ] && SOURCE_DIR="htdocs"
+          [ ! -d "$SOURCE_DIR" ] && { echo "⚠️ No src/ or htdocs/ — skipping package"; exit 0; }
+
+          cd "$SOURCE_DIR"
+          zip -r "/tmp/${PACKAGE_NAME}" . -x '*.git*' '*.DS_Store' 'Thumbs.db' '*.log'
+          cd ..
+
+          # ── Calculate SHA-256 ─────────────────────────────────────────
+          SHA256=$(sha256sum "/tmp/${PACKAGE_NAME}" | cut -d' ' -f1)
+          echo "SHA-256: ${SHA256}"
+
+          # ── Upload as release asset ───────────────────────────────────
+          gh release upload "$TAG" "/tmp/${PACKAGE_NAME}" --clobber 2>/dev/null || \
+            echo "⚠️ Could not upload to $TAG — trying without clobber" && \
+            gh release upload "$TAG" "/tmp/${PACKAGE_NAME}" 2>/dev/null || true
+
+          # ── Update update.xml with SHA-256 ────────────────────────────
+          if [ -f "update.xml" ]; then
+            # Insert <sha256> after </downloads> if not already present
+            if grep -q '<sha256>' update.xml; then
+              sed -i "s|<sha256>.*</sha256>|<sha256>sha256:${SHA256}</sha256>|" update.xml
+            else
+              sed -i "s|</downloads>|</downloads>\n    <sha256>sha256:${SHA256}</sha256>|" update.xml
+            fi
+
+            # Commit checksum update
+            git add update.xml
+            git commit -m "chore(release): add SHA-256 checksum for ${VERSION} [skip ci]" \
+              --author="github-actions[bot] <github-actions[bot]@users.noreply.github.com>" || true
+            git push || true
+
+            echo "🔐 SHA-256: \`${SHA256}\`" >> $GITHUB_STEP_SUMMARY
+            echo "📦 Package: ${PACKAGE_NAME} uploaded to release ${TAG}" >> $GITHUB_STEP_SUMMARY
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
 
       # ── Summary ────────────────────────────────────────────────────────
       - name: Pipeline Summary
