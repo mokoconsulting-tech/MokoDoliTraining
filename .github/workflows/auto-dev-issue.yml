@@ -9,8 +9,8 @@
 # INGROUP: MokoStandards.Automation
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-dev-issue.yml.template
-# VERSION: 01.00.02
-# BRIEF: Auto-create tracking issue when a dev/** or rc/** branch is pushed
+# VERSION: 04.05.13
+# BRIEF: Auto-create tracking issue with sub-issues for dev/rc branch workflow
 # NOTE: Synced via bulk-repo-sync to .github/workflows/auto-dev-issue.yml in all governed repos.
 
 name: Auto Dev Branch Issue
@@ -34,7 +34,7 @@ jobs:
       (startsWith(github.event.ref, 'dev/') || startsWith(github.event.ref, 'rc/'))
 
     steps:
-      - name: Create tracking issue
+      - name: Create tracking issue and sub-issues
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
@@ -58,45 +58,95 @@ jobs:
 
           TITLE="${TITLE_PREFIX}(${VERSION}): ${BRANCH_TYPE} tracking for ${BRANCH}"
 
-          BODY="## ${BRANCH_TYPE} Branch Created
-
-          | Field | Value |
-          |-------|-------|
-          | **Branch** | \`${BRANCH}\` |
-          | **Version** | \`${VERSION}\` |
-          | **Type** | ${BRANCH_TYPE} |
-          | **Created by** | @${ACTOR} |
-          | **Created at** | ${NOW} |
-          | **Repository** | \`${REPO}\` |
-
-          ## Checklist
-
-          - [ ] Feature development complete
-          - [ ] Tests passing
-          - [ ] README.md version bumped to \`${VERSION}\`
-          - [ ] CHANGELOG.md updated
-          - [ ] PR created targeting \`main\`
-          - [ ] Code reviewed and approved
-          - [ ] Merged to \`main\`
-
-          ---
-          *Auto-created by [auto-dev-issue.yml](.github/workflows/auto-dev-issue.yml) on branch creation.*"
-
-          # Dedent heredoc
-          BODY=$(echo "$BODY" | sed 's/^          //')
-
           # Check for existing issue with same title prefix
-          EXISTING=$(gh api "repos/${REPO}/issues?state=open&per_page=5" \
+          EXISTING=$(gh api "repos/${REPO}/issues?state=open&per_page=10" \
             --jq ".[] | select(.title | startswith(\"${TITLE_PREFIX}(${VERSION})\")) | .number" 2>/dev/null | head -1)
 
           if [ -n "$EXISTING" ]; then
             echo "ℹ️ Issue #${EXISTING} already exists for ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          else
-            ISSUE_URL=$(gh issue create \
-              --repo "$REPO" \
-              --title "$TITLE" \
-              --body "$BODY" \
-              --label "${LABEL_TYPE},version" \
-              --assignee "jmiller-moko" 2>&1)
-            echo "✅ Created tracking issue: ${ISSUE_URL}" >> $GITHUB_STEP_SUMMARY
+            exit 0
           fi
+
+          # ── Define sub-issues for the dev workflow ────────────────────────
+          if [[ "$BRANCH" == rc/* ]]; then
+            SUB_ISSUES=(
+              "RC Testing|Verify all features work on rc branch|type: test,release-candidate"
+              "Regression Testing|Run full regression suite before merge to main|type: test,release-candidate"
+              "Version Bump|Bump version in README.md and all headers|type: version,release-candidate"
+              "Changelog Update|Update CHANGELOG.md with release notes|documentation,release-candidate"
+              "Merge to Main|Create PR from rc branch to main|type: release,needs-review"
+            )
+          else
+            SUB_ISSUES=(
+              "Development|Implement feature/fix on dev branch|type: feature,status: in-progress"
+              "Unit Testing|Write and pass unit tests|type: test,status: pending"
+              "Code Review|Request and complete code review|needs-review,status: pending"
+              "Version Bump|Bump version in README.md and all headers|type: version,status: pending"
+              "Changelog Update|Update CHANGELOG.md with release notes|documentation,status: pending"
+              "Create RC Branch|Promote dev to rc branch for final testing|type: release,status: pending"
+              "Merge to Main|Create PR from rc/dev to main|type: release,needs-review,status: pending"
+            )
+          fi
+
+          # ── Create sub-issues first ───────────────────────────────────────
+          SUB_LIST=""
+          SUB_NUMBERS=""
+          for SUB in "${SUB_ISSUES[@]}"; do
+            IFS='|' read -r SUB_TITLE SUB_DESC SUB_LABELS <<< "$SUB"
+            SUB_FULL_TITLE="${TITLE_PREFIX}(${VERSION}): ${SUB_TITLE}"
+
+            SUB_BODY=$(printf '### %s\n\n%s\n\n| Field | Value |\n|-------|-------|\n| **Parent Branch** | `%s` |\n| **Version** | `%s` |\n\n---\n*Sub-issue of the %s tracking issue for `%s`.*' \
+              "$SUB_TITLE" "$SUB_DESC" "$BRANCH" "$VERSION" "$BRANCH_TYPE" "$BRANCH")
+
+            SUB_URL=$(gh issue create \
+              --repo "$REPO" \
+              --title "$SUB_FULL_TITLE" \
+              --body "$SUB_BODY" \
+              --label "${SUB_LABELS}" \
+              --assignee "jmiller-moko" 2>&1)
+
+            SUB_NUM=$(echo "$SUB_URL" | grep -oE '[0-9]+$')
+            if [ -n "$SUB_NUM" ]; then
+              SUB_LIST="${SUB_LIST}\n- [ ] ${SUB_TITLE} (#${SUB_NUM})"
+              SUB_NUMBERS="${SUB_NUMBERS} #${SUB_NUM}"
+            fi
+            sleep 0.3
+          done
+
+          # ── Create parent tracking issue ──────────────────────────────────
+          PARENT_BODY=$(printf '## %s Branch Created\n\n| Field | Value |\n|-------|-------|\n| **Branch** | `%s` |\n| **Version** | `%s` |\n| **Type** | %s |\n| **Created by** | @%s |\n| **Created at** | %s |\n| **Repository** | `%s` |\n\n## Workflow Sub-Issues\n\n%b\n\n---\n*Auto-created by [auto-dev-issue.yml](.github/workflows/auto-dev-issue.yml) on branch creation.*' \
+            "$BRANCH_TYPE" "$BRANCH" "$VERSION" "$BRANCH_TYPE" "$ACTOR" "$NOW" "$REPO" "$SUB_LIST")
+
+          PARENT_URL=$(gh issue create \
+            --repo "$REPO" \
+            --title "$TITLE" \
+            --body "$PARENT_BODY" \
+            --label "${LABEL_TYPE},version" \
+            --assignee "jmiller-moko" 2>&1)
+
+          PARENT_NUM=$(echo "$PARENT_URL" | grep -oE '[0-9]+$')
+
+          # ── Link sub-issues back to parent ────────────────────────────────
+          if [ -n "$PARENT_NUM" ]; then
+            for SUB in "${SUB_ISSUES[@]}"; do
+              IFS='|' read -r SUB_TITLE _ _ <<< "$SUB"
+              SUB_FULL_TITLE="${TITLE_PREFIX}(${VERSION}): ${SUB_TITLE}"
+              SUB_NUM=$(gh api "repos/${REPO}/issues?state=open&per_page=20" \
+                --jq ".[] | select(.title == \"${SUB_FULL_TITLE}\") | .number" 2>/dev/null | head -1)
+              if [ -n "$SUB_NUM" ]; then
+                gh api "repos/${REPO}/issues/${SUB_NUM}" -X PATCH \
+                  -f body="$(gh api "repos/${REPO}/issues/${SUB_NUM}" --jq '.body' 2>/dev/null)
+
+          > **Parent Issue:** #${PARENT_NUM}" --silent 2>/dev/null || true
+              fi
+              sleep 0.2
+            done
+          fi
+
+          # ── Summary ───────────────────────────────────────────────────────
+          echo "## 🎯 Dev Workflow Issues Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Issue |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Parent** | ${PARENT_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Sub-issues** |${SUB_NUMBERS} |" >> $GITHUB_STEP_SUMMARY
