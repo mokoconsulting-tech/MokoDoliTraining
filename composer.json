@@ -2,7 +2,7 @@
     "name": "mokoconsulting-tech/mokodolitraining",
     "description": "MokoDoliTraining Dolibarr module by Moko Consulting",
     "type": "dolibarr-module",
-    "version": "01.00.01",
+    "version": "01.00.02",
     "license": "GPL-3.0-or-later",
     "authors": [
         {

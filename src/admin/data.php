@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/admin/data.php
- * VERSION:  01.00.01
+ * VERSION:  01.00.02
  * BRIEF:    Training Data tab: manifest table, SQL file info, dataset overview.
  */
 

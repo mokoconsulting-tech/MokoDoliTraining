@@ -6,7 +6,7 @@
 # INGROUP: MokoStandards.Workflows.Shared
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /.github/workflows/auto-assign.yml
-# VERSION: 04.05.11
+# VERSION: 01.00.02
 # BRIEF: Auto-assign jmiller-moko to unassigned issues and PRs every 15 minutes
 
 name: Auto-Assign Issues & PRs

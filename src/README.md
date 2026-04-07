@@ -17,7 +17,7 @@ DEFGROUP: MokoDoliTraining.Docs
 INGROUP:  MokoDoliTraining
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /src/README.md
-VERSION:  01.00.01
+VERSION:  01.00.02
 BRIEF:    End-user guide for the MokoDoliTraining Dolibarr module.
 -->
 
