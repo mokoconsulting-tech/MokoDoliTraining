@@ -8,29 +8,27 @@
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-release.yml.template
 # VERSION: 04.05.13
-# BRIEF: Unified build & release pipeline — version branch, platform version, badges, tag, release
+# BRIEF: Generic build & release pipeline — version branch, platform version, badges, tag, release
 #
-# ╔════════════════════════════════════════════════════════════════════════╗
-# ║                    BUILD & RELEASE PIPELINE                            ║
-# ╠════════════════════════════════════════════════════════════════════════╣
-# ║                                                                        ║
-# ║  Triggers on push to main (skips bot commits + [skip ci]):             ║
-# ║                                                                        ║
-# ║  Every push:                                                           ║
-# ║    1. Read version from README.md                                      ║
-# ║    3. Set platform version (Dolibarr $this->version, Joomla <version>)║
-# ║    4. Update [VERSION: XX.YY.ZZ] badges in markdown files             ║
-# ║    5. Write update.txt / update.xml                                    ║
-# ║    6. Create git tag vXX.YY.ZZ                                        ║
-# ║    7a. Patch: update existing GitHub Release for this minor            ║
-# ║    8.  Joomla only: build ZIP, upload asset, write SHA-256 to XML     ║
-# ║                                                                        ║
-# ║  Every version change: archives main → version/XX.YY branch            ║
-# ║  Patch 00 = development (no release). First release = patch 01.        ║
-# ║  First release only (patch == 01):                                     ║
-# ║    7b. Create new GitHub Release                                       ║
-# ║                                                                        ║
-# ╚════════════════════════════════════════════════════════════════════════╝
+# +========================================================================+
+# |                    BUILD & RELEASE PIPELINE                            |
+# +========================================================================+
+# |                                                                        |
+# |  Triggers on push to main (skips bot commits + [skip ci]):             |
+# |                                                                        |
+# |  Every push:                                                           |
+# |    1. Read version from README.md                                      |
+# |    3. Set platform version                                             |
+# |    4. Update [VERSION: XX.YY.ZZ] badges in markdown files              |
+# |    6. Create git tag vXX.YY.ZZ                                        |
+# |    7a. Patch: update existing GitHub Release for this minor            |
+# |                                                                        |
+# |  Every version change: archives main -> version/XX.YY branch           |
+# |  Patch 00 = development (no release). First release = patch 01.        |
+# |  First release only (patch == 01):                                     |
+# |    7b. Create new GitHub Release                                       |
+# |                                                                        |
+# +========================================================================+
 
 name: Build & Release
 
@@ -72,13 +70,13 @@ jobs:
           cd /tmp/mokostandards
           composer install --no-dev --no-interaction --quiet
 
-      # ── STEP 1: Read version ───────────────────────────────────────────
+      # -- STEP 1: Read version -----------------------------------------------
       - name: "Step 1: Read version from README.md"
         id: version
         run: |
           VERSION=$(php /tmp/mokostandards/api/cli/version_read.php --path . 2>/dev/null)
           if [ -z "$VERSION" ]; then
-            echo "⏭️ No VERSION in README.md — skipping release"
+            echo "No VERSION in README.md — skipping release"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -93,15 +91,15 @@ jobs:
           if [ "$PATCH" = "00" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "is_minor=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ Version: $VERSION (patch 00 = development — skipping release)"
+            echo "Version: $VERSION (patch 00 = development — skipping release)"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
             if [ "$PATCH" = "01" ]; then
               echo "is_minor=true" >> "$GITHUB_OUTPUT"
-              echo "✅ Version: $VERSION (first release — full pipeline)"
+              echo "Version: $VERSION (first release — full pipeline)"
             else
               echo "is_minor=false" >> "$GITHUB_OUTPUT"
-              echo "✅ Version: $VERSION (patch — platform version + badges only)"
+              echo "Version: $VERSION (patch — platform version + badges only)"
             fi
           fi
 
@@ -127,34 +125,31 @@ jobs:
             echo "already_released=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # ── SANITY CHECKS ────────────────────────────────────────────────────
-      - name: "Sanity: Platform-specific validation"
+      # -- SANITY CHECKS -------------------------------------------------------
+      - name: "Sanity: Pre-release validation"
         if: >-
           steps.version.outputs.skip != 'true' &&
           steps.check.outputs.already_released != 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          PLATFORM=$(php /tmp/mokostandards/api/cli/platform_detect.php --path . 2>/dev/null)
           ERRORS=0
 
-          echo "## 🔍 Pre-Release Sanity Checks" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Platform: \`${PLATFORM}\`" >> $GITHUB_STEP_SUMMARY
+          echo "## Pre-Release Sanity Checks" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # ── Version drift check (must pass before release) ─────────
+          # -- Version drift check (must pass before release) --------
           README_VER=$(grep -oP 'VERSION:\s*\K[\d.]+' README.md 2>/dev/null | head -1)
           if [ "$README_VER" != "$VERSION" ]; then
-            echo "❌ Version drift: README says \`${README_VER}\` but releasing \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Version drift: README says \`${README_VER}\` but releasing \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
             ERRORS=$((ERRORS+1))
           else
-            echo "✅ Version consistent: \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Version consistent: \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Check CHANGELOG version matches
           CL_VER=$(grep -oP 'VERSION:\s*\K[\d.]+' CHANGELOG.md 2>/dev/null | head -1)
           if [ -n "$CL_VER" ] && [ "$CL_VER" != "$VERSION" ]; then
-            echo "❌ CHANGELOG drift: \`${CL_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- CHANGELOG drift: \`${CL_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
             ERRORS=$((ERRORS+1))
           fi
 
@@ -162,89 +157,33 @@ jobs:
           if [ -f "composer.json" ]; then
             COMP_VER=$(grep -oP '"version"\s*:\s*"\K[^"]+' composer.json 2>/dev/null | head -1)
             if [ -n "$COMP_VER" ] && [ "$COMP_VER" != "$VERSION" ]; then
-              echo "❌ composer.json drift: \`${COMP_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
+              echo "- composer.json drift: \`${COMP_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
               ERRORS=$((ERRORS+1))
-            fi
-          fi
-
-          # Joomla: check manifest version matches
-          if [ "$PLATFORM" = "waas-component" ]; then
-            MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1)
-            if [ -n "$MANIFEST" ]; then
-              XML_VER=$(grep -oP '<version>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1)
-              if [ -n "$XML_VER" ] && [ "$XML_VER" != "$VERSION" ]; then
-                echo "❌ Manifest drift: \`${XML_VER}\` != \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-                ERRORS=$((ERRORS+1))
-              else
-                echo "✅ Manifest version: \`${VERSION}\`" >> $GITHUB_STEP_SUMMARY
-              fi
             fi
           fi
 
           # Common checks
           if [ ! -f "LICENSE" ]; then
-            echo "❌ Missing LICENSE file" >> $GITHUB_STEP_SUMMARY
+            echo "- Missing LICENSE file" >> $GITHUB_STEP_SUMMARY
             ERRORS=$((ERRORS+1))
           else
-            echo "✅ LICENSE" >> $GITHUB_STEP_SUMMARY
+            echo "- LICENSE present" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ ! -d "src" ] && [ ! -d "htdocs" ]; then
-            echo "⚠️ No src/ or htdocs/ directory" >> $GITHUB_STEP_SUMMARY
+            echo "- Warning: No src/ or htdocs/ directory" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ Source directory" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Dolibarr-specific checks
-          if [ "$PLATFORM" = "crm-module" ]; then
-            MOD_FILE=$(find src htdocs -path "*/core/modules/mod*.class.php" -print -quit 2>/dev/null)
-            if [ -z "$MOD_FILE" ]; then
-              echo "❌ No module descriptor (src/core/modules/mod*.class.php)" >> $GITHUB_STEP_SUMMARY
-              ERRORS=$((ERRORS+1))
-            else
-              echo "✅ Module descriptor: \`${MOD_FILE}\`" >> $GITHUB_STEP_SUMMARY
-
-              # Check module number
-              NUMERO=$(grep -oP '\$this->numero\s*=\s*\K\d+' "$MOD_FILE" 2>/dev/null || echo "0")
-              if [ "$NUMERO" = "0" ] || [ -z "$NUMERO" ]; then
-                echo "❌ Module number (\$this->numero) is 0 or not set" >> $GITHUB_STEP_SUMMARY
-                ERRORS=$((ERRORS+1))
-              else
-                echo "✅ Module number: ${NUMERO}" >> $GITHUB_STEP_SUMMARY
-              fi
-
-              # Check url_last_version exists
-              if grep -q 'url_last_version' "$MOD_FILE" 2>/dev/null; then
-                echo "✅ url_last_version is set" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "⚠️ url_last_version not set — update checks won't work" >> $GITHUB_STEP_SUMMARY
-              fi
-            fi
-          fi
-
-          # Joomla-specific checks
-          if [ "$PLATFORM" = "waas-component" ]; then
-            MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1)
-            if [ -z "$MANIFEST" ]; then
-              echo "❌ No Joomla XML manifest found" >> $GITHUB_STEP_SUMMARY
-              ERRORS=$((ERRORS+1))
-            else
-              echo "✅ Manifest: \`${MANIFEST}\`" >> $GITHUB_STEP_SUMMARY
-
-              # Check extension type
-              TYPE=$(grep -oP '<extension[^>]+type="\K[^"]+' "$MANIFEST" 2>/dev/null)
-              echo "✅ Extension type: ${TYPE:-unknown}" >> $GITHUB_STEP_SUMMARY
-            fi
+            echo "- Source directory present" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "$ERRORS" -gt 0 ]; then
-            echo "**❌ ${ERRORS} error(s) — release may be incomplete**" >> $GITHUB_STEP_SUMMARY
+            echo "**${ERRORS} error(s) — release may be incomplete**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**✅ All sanity checks passed**" >> $GITHUB_STEP_SUMMARY
+            echo "**All sanity checks passed**" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # ── STEP 2: Create or update version/XX.YY archive branch ────────────
+      # -- STEP 2: Create or update version/XX.YY archive branch ---------------
       # Always runs — every version change on main archives to version/XX.YY
       - name: "Step 2: Version archive branch"
         if: steps.check.outputs.already_released != 'true'
@@ -257,14 +196,14 @@ jobs:
           # Check if branch exists
           if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
             git push origin HEAD:"$BRANCH" --force
-            echo "📝 Updated archive branch: ${BRANCH} (patch ${PATCH_NUM})" >> $GITHUB_STEP_SUMMARY
+            echo "Updated archive branch: ${BRANCH} (patch ${PATCH_NUM})" >> $GITHUB_STEP_SUMMARY
           else
             git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
             git push origin "$BRANCH" --force
-            echo "🌿 Created archive branch: ${BRANCH}" >> $GITHUB_STEP_SUMMARY
+            echo "Created archive branch: ${BRANCH}" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # ── STEP 3: Set platform version ───────────────────────────────────
+      # -- STEP 3: Set platform version ----------------------------------------
       - name: "Step 3: Set platform version"
         if: >-
           steps.version.outputs.skip != 'true' &&
@@ -274,7 +213,7 @@ jobs:
           php /tmp/mokostandards/api/cli/version_set_platform.php \
             --path . --version "$VERSION" --branch main
 
-      # ── STEP 4: Update version badges ──────────────────────────────────
+      # -- STEP 4: Update version badges ----------------------------------------
       - name: "Step 4: Update version badges"
         if: >-
           steps.version.outputs.skip != 'true' &&
@@ -287,107 +226,14 @@ jobs:
             fi
           done
 
-      # ── STEP 5: Write update files (Dolibarr: update.txt / Joomla: update.xml)
-      - name: "Step 5: Write update files"
-        if: >-
-          steps.version.outputs.skip != 'true' &&
-          steps.check.outputs.already_released != 'true'
-        run: |
-          PLATFORM=$(php /tmp/mokostandards/api/cli/platform_detect.php --path . 2>/dev/null)
-          VERSION="${{ steps.version.outputs.version }}"
-          REPO="${{ github.repository }}"
-
-          if [ "$PLATFORM" = "crm-module" ]; then
-            printf '%s' "$VERSION" > update.txt
-            echo "📦 update.txt: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "$PLATFORM" = "waas-component" ]; then
-            # ── Parse extension metadata from XML manifest ──────────────
-            MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1)
-            if [ -z "$MANIFEST" ]; then
-              echo "⚠️ No Joomla XML manifest found — skipping update.xml" >> $GITHUB_STEP_SUMMARY
-            else
-              EXT_NAME=$(grep -oP '<name>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1 || echo "${{ github.event.repository.name }}")
-              EXT_TYPE=$(grep -oP '<extension[^>]+type="\K[^"]+' "$MANIFEST" 2>/dev/null || echo "component")
-              EXT_ELEMENT=$(grep -oP '<element>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1 || echo "")
-              EXT_CLIENT=$(grep -oP '<extension[^>]+client="\K[^"]+' "$MANIFEST" 2>/dev/null || echo "")
-              EXT_FOLDER=$(grep -oP '<extension[^>]+group="\K[^"]+' "$MANIFEST" 2>/dev/null || echo "")
-              TARGET_PLATFORM=$(grep -oP '<targetplatform[^/]*/>' "$MANIFEST" 2>/dev/null | head -1 || echo "")
-              PHP_MINIMUM=$(grep -oP '<php_minimum>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1 || echo "")
-
-              # Derive element from manifest filename if not in XML
-              if [ -z "$EXT_ELEMENT" ]; then
-                EXT_ELEMENT=$(basename "$MANIFEST" .xml)
-              fi
-
-              # Build client tag: plugins and frontend modules need <client>site</client>
-              CLIENT_TAG=""
-              if [ -n "$EXT_CLIENT" ]; then
-                CLIENT_TAG="<client>${EXT_CLIENT}</client>"
-              elif [ "$EXT_TYPE" = "module" ] || [ "$EXT_TYPE" = "plugin" ]; then
-                CLIENT_TAG="<client>site</client>"
-              fi
-
-              # Build folder tag for plugins (required for Joomla to match the update)
-              FOLDER_TAG=""
-              if [ -n "$EXT_FOLDER" ] && [ "$EXT_TYPE" = "plugin" ]; then
-                FOLDER_TAG="<folder>${EXT_FOLDER}</folder>"
-              fi
-
-              # Build targetplatform (fallback to Joomla 5+6 if not in manifest)
-              if [ -z "$TARGET_PLATFORM" ]; then
-                TARGET_PLATFORM=$(printf '<targetplatform name="joomla" version="5.*" %s>' "/")
-              fi
-
-              # Build php_minimum tag
-              PHP_TAG=""
-              if [ -n "$PHP_MINIMUM" ]; then
-                PHP_TAG="<php_minimum>${PHP_MINIMUM}</php_minimum>"
-              fi
-
-              DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${EXT_ELEMENT}-${VERSION}.zip"
-              INFO_URL="https://github.com/${REPO}/releases/tag/v${VERSION}"
-
-              # ── Write update.xml (stable release) ───────────────────────
-              {
-                printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>'
-                printf '%s\n' '<updates>'
-                printf '%s\n' '  <update>'
-                printf '%s\n' "    <name>${EXT_NAME}</name>"
-                printf '%s\n' "    <description>${EXT_NAME} update</description>"
-                printf '%s\n' "    <element>${EXT_ELEMENT}</element>"
-                printf '%s\n' "    <type>${EXT_TYPE}</type>"
-                printf '%s\n' "    <version>${VERSION}</version>"
-                [ -n "$CLIENT_TAG" ] && printf '%s\n' "    ${CLIENT_TAG}"
-                [ -n "$FOLDER_TAG" ] && printf '%s\n' "    ${FOLDER_TAG}"
-                printf '%s\n' '    <tags>'
-                printf '%s\n' '      <tag>stable</tag>'
-                printf '%s\n' '    </tags>'
-                printf '%s\n' "    <infourl title=\"${EXT_NAME}\">${INFO_URL}</infourl>"
-                printf '%s\n' '    <downloads>'
-                printf '%s\n' "      <downloadurl type=\"full\" format=\"zip\">${DOWNLOAD_URL}</downloadurl>"
-                printf '%s\n' '    </downloads>'
-                printf '%s\n' "    ${TARGET_PLATFORM}"
-                [ -n "$PHP_TAG" ] && printf '%s\n' "    ${PHP_TAG}"
-                printf '%s\n' '    <maintainer>Moko Consulting</maintainer>'
-                printf '%s\n' '    <maintainerurl>https://mokoconsulting.tech</maintainerurl>'
-                printf '%s\n' '  </update>'
-                printf '%s\n' '</updates>'
-              } > update.xml
-
-              echo "📦 update.xml: ${VERSION} (stable) — ${EXT_TYPE}/${EXT_ELEMENT}" >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
-
-      # ── Commit all changes ─────────────────────────────────────────────
+      # -- Commit all changes ---------------------------------------------------
       - name: Commit release changes
         if: >-
           steps.version.outputs.skip != 'true' &&
           steps.check.outputs.already_released != 'true'
         run: |
           if git diff --quiet && git diff --cached --quiet; then
-            echo "ℹ️ No changes to commit"
+            echo "No changes to commit"
             exit 0
           fi
           VERSION="${{ steps.version.outputs.version }}"
@@ -398,18 +244,19 @@ jobs:
             --author="github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           git push
 
-      # ── STEP 6: Create tag ─────────────────────────────────────────────
+      # -- STEP 6: Create tag ---------------------------------------------------
       - name: "Step 6: Create git tag"
         if: >-
           steps.version.outputs.skip != 'true' &&
-          steps.check.outputs.tag_exists != 'true'
+          steps.check.outputs.tag_exists != 'true' &&
+          steps.version.outputs.is_minor == 'true'
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           git tag "$TAG"
           git push origin "$TAG"
-          echo "🏷️ Tag: ${TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "Tag: ${TAG}" >> $GITHUB_STEP_SUMMARY
 
-      # ── STEP 7: Create or update GitHub Release ──────────────────────────
+      # -- STEP 7: Create or update GitHub Release ------------------------------
       - name: "Step 7: GitHub Release"
         if: >-
           steps.version.outputs.skip != 'true' &&
@@ -436,7 +283,7 @@ jobs:
               --title "${VERSION}" \
               --notes-file /tmp/release_notes.md \
               --target "$BRANCH"
-            echo "🚀 Release created: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "Release created: ${VERSION}" >> $GITHUB_STEP_SUMMARY
           else
             # Patch release: update the existing minor release with new tag
             # Find the latest release for this minor version
@@ -456,88 +303,29 @@ jobs:
               gh release edit "$MINOR_TAG" \
                 --title "${MINOR_BASE} (latest: ${VERSION})" \
                 --notes-file /tmp/updated_notes.md
-              echo "📝 Release updated: ${MINOR_BASE} → patch ${VERSION}" >> $GITHUB_STEP_SUMMARY
+              echo "Release updated: ${MINOR_BASE} -> patch ${VERSION}" >> $GITHUB_STEP_SUMMARY
             else
               # No existing minor release found — create one for this patch
               gh release create "$TAG" \
                 --title "${VERSION}" \
                 --notes-file /tmp/release_notes.md
-              echo "🚀 Release created: ${VERSION} (no minor release found)" >> $GITHUB_STEP_SUMMARY
+              echo "Release created: ${VERSION} (no minor release found)" >> $GITHUB_STEP_SUMMARY
             fi
           fi
 
-      # ── STEP 8: Joomla package + SHA-256 checksum ──────────────────────
-      - name: "Step 8: Build Joomla package and update checksum"
-        if: >-
-          steps.version.outputs.skip != 'true' &&
-          steps.check.outputs.tag_exists != 'true'
-        run: |
-          PLATFORM=$(php /tmp/mokostandards/api/cli/platform_detect.php --path . 2>/dev/null || true)
-          [ "$PLATFORM" != "waas-component" ] && exit 0
-
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
-          REPO="${{ github.repository }}"
-
-          # Find extension element name from manifest
-          MANIFEST=$(find . -maxdepth 2 -name "*.xml" -exec grep -l '<extension' {} \; 2>/dev/null | head -1 || true)
-          [ -z "$MANIFEST" ] && exit 0
-
-          EXT_ELEMENT=$(grep -oP '<element>\K[^<]+' "$MANIFEST" 2>/dev/null | head -1 || basename "$MANIFEST" .xml)
-          PACKAGE_NAME="${EXT_ELEMENT}-${VERSION}.zip"
-
-          # ── Build ZIP from src/ ───────────────────────────────────────
-          SOURCE_DIR="src"
-          [ ! -d "$SOURCE_DIR" ] && SOURCE_DIR="htdocs"
-          [ ! -d "$SOURCE_DIR" ] && { echo "⚠️ No src/ or htdocs/ — skipping package"; exit 0; }
-
-          cd "$SOURCE_DIR"
-          zip -r "/tmp/${PACKAGE_NAME}" . -x '*.git*' '*.DS_Store' 'Thumbs.db' '*.log'
-          cd ..
-
-          # ── Calculate SHA-256 ─────────────────────────────────────────
-          SHA256=$(sha256sum "/tmp/${PACKAGE_NAME}" | cut -d' ' -f1)
-          echo "SHA-256: ${SHA256}"
-
-          # ── Upload as release asset ───────────────────────────────────
-          gh release upload "$TAG" "/tmp/${PACKAGE_NAME}" --clobber 2>/dev/null || \
-            echo "⚠️ Could not upload to $TAG — trying without clobber" && \
-            gh release upload "$TAG" "/tmp/${PACKAGE_NAME}" 2>/dev/null || true
-
-          # ── Update update.xml with SHA-256 ────────────────────────────
-          if [ -f "update.xml" ]; then
-            # Insert <sha256> after </downloads> if not already present
-            if grep -q '<sha256>' update.xml; then
-              sed -i "s|<sha256>.*</sha256>|<sha256>sha256:${SHA256}</sha256>|" update.xml
-            else
-              sed -i "s|</downloads>|</downloads>\n    <sha256>sha256:${SHA256}</sha256>|" update.xml
-            fi
-
-            # Commit checksum update
-            git add update.xml
-            git commit -m "chore(release): add SHA-256 checksum for ${VERSION} [skip ci]" \
-              --author="github-actions[bot] <github-actions[bot]@users.noreply.github.com>" || true
-            git push || true
-
-            echo "🔐 SHA-256: \`${SHA256}\`" >> $GITHUB_STEP_SUMMARY
-            echo "📦 Package: ${PACKAGE_NAME} uploaded to release ${TAG}" >> $GITHUB_STEP_SUMMARY
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-
-      # ── Summary ────────────────────────────────────────────────────────
+      # -- Summary --------------------------------------------------------------
       - name: Pipeline Summary
         if: always()
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           if [ "${{ steps.version.outputs.skip }}" = "true" ]; then
-            echo "## ⏭️ Release Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "## Release Skipped" >> $GITHUB_STEP_SUMMARY
             echo "No VERSION in README.md" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.check.outputs.already_released }}" = "true" ]; then
-            echo "## ℹ️ Already Released — ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "## Already Released — ${VERSION}" >> $GITHUB_STEP_SUMMARY
           else
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## ✅ Build & Release Complete" >> $GITHUB_STEP_SUMMARY
+            echo "## Build & Release Complete" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| Step | Result |" >> $GITHUB_STEP_SUMMARY
             echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
