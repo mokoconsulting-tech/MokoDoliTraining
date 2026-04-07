@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-demo.yml.template
-# VERSION: 01.00.03
+# VERSION: 04.05.13
 # BRIEF: SFTP deployment workflow for demo server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-demo.yml in all governed repos.
 #       Port is resolved in order: DEMO_FTP_PORT variable → :port suffix in DEMO_FTP_HOST → 22.
@@ -296,6 +296,12 @@ jobs:
           HOST="$HOST_RAW"
           PORT="$PORT_VAR"
 
+          if [ -z "$HOST" ]; then
+            echo "⏭️ DEMO_FTP_HOST not configured — skipping demo deployment."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Priority 1 — explicit DEMO_FTP_PORT variable
           if [ -n "$PORT" ]; then
             echo "ℹ️  Using explicit DEMO_FTP_PORT=${PORT}"
@@ -317,7 +323,7 @@ jobs:
           echo "SFTP target: ${HOST}:${PORT}"
 
       - name: Build remote path
-        if: steps.source.outputs.skip == 'false'
+        if: steps.source.outputs.skip == 'false' && steps.conn.outputs.skip != 'true'
         id: remote
         env:
           DEMO_FTP_PATH: ${{ vars.DEMO_FTP_PATH }}
@@ -326,10 +332,9 @@ jobs:
           BASE="$DEMO_FTP_PATH"
 
           if [ -z "$BASE" ]; then
-            echo "❌ DEMO_FTP_PATH is not set."
-            echo "   Configure it as an org-level variable (Settings → Variables) and"
-            echo "   ensure this repository has been granted access to it."
-            exit 1
+            echo "⏭️ DEMO_FTP_PATH not configured — skipping demo deployment."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           # DEMO_FTP_SUFFIX is required — it identifies the remote subdirectory for this repo.
@@ -640,7 +645,7 @@ jobs:
           rm -f /tmp/deploy_key /tmp/sftp-config.json
 
       - name: Create or update failure issue
-        if: failure() && steps.remote.outputs.skip != 'true'
+        if: failure() && steps.remote.outputs.skip != 'true' && steps.conn.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
