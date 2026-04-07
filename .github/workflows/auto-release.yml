@@ -84,10 +84,14 @@ jobs:
           MINOR=$(echo "$VERSION" | awk -F. '{printf "%s.%s", $1, $2}')
           PATCH=$(echo "$VERSION" | awk -F. '{print $3}')
 
+          MAJOR=$(echo "$VERSION" | awk -F. '{print $1}')
+          MINOR_NUM=$(echo "$VERSION" | awk -F. '{print $2}')
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "branch=version/${MINOR}" >> "$GITHUB_OUTPUT"
           echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v${MAJOR}" >> "$GITHUB_OUTPUT"
           if [ "$PATCH" = "00" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "is_minor=false" >> "$GITHUB_OUTPUT"
@@ -107,7 +111,7 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         id: check
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
+          TAG="${{ steps.version.outputs.release_tag }}"
           BRANCH="${{ steps.version.outputs.branch }}"
 
           TAG_EXISTS=false
@@ -251,9 +255,15 @@ jobs:
           steps.check.outputs.tag_exists != 'true' &&
           steps.version.outputs.is_minor == 'true'
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          git tag "$TAG"
-          git push origin "$TAG"
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
+          # Only create the major release tag if it doesn't exist yet
+          if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            git tag "$RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
+            echo "Tag created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Tag ${RELEASE_TAG} already exists" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "Tag: ${TAG}" >> $GITHUB_STEP_SUMMARY
 
       # -- STEP 7: Create or update GitHub Release ------------------------------
@@ -265,52 +275,40 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
+          RELEASE_TAG="${{ steps.version.outputs.release_tag }}"
           BRANCH="${{ steps.version.outputs.branch }}"
-          IS_MINOR="${{ steps.version.outputs.is_minor }}"
-
-          # Derive the minor version base (XX.YY.00)
-          MINOR_BASE=$(echo "$VERSION" | sed 's/\.[0-9]*$/.00/')
-          MINOR_TAG="v${MINOR_BASE}"
+          MAJOR="${{ steps.version.outputs.major }}"
 
           NOTES=$(php /tmp/mokostandards/api/cli/release_notes.php --path . --version "$VERSION" 2>/dev/null)
           [ -z "$NOTES" ] && NOTES="Release ${VERSION}"
           echo "$NOTES" > /tmp/release_notes.md
 
-          if [ "$IS_MINOR" = "true" ]; then
-            # Minor release: create new GitHub Release
-            gh release create "$TAG" \
-              --title "${VERSION}" \
+          # Check if the major release already exists
+          EXISTING=$(gh release view "$RELEASE_TAG" --json tagName -q .tagName 2>/dev/null || true)
+
+          if [ -z "$EXISTING" ]; then
+            # First release for this major: create GitHub Release
+            gh release create "$RELEASE_TAG" \
+              --title "v${MAJOR} (latest: ${VERSION})" \
               --notes-file /tmp/release_notes.md \
               --target "$BRANCH"
-            echo "Release created: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+            echo "Release created: ${RELEASE_TAG} (${VERSION})" >> $GITHUB_STEP_SUMMARY
           else
-            # Patch release: update the existing minor release with new tag
-            # Find the latest release for this minor version
-            EXISTING=$(gh release view "$MINOR_TAG" --json tagName -q .tagName 2>/dev/null || true)
-            if [ -n "$EXISTING" ]; then
-              # Update existing release body with patch info
-              CURRENT_NOTES=$(gh release view "$MINOR_TAG" --json body -q .body 2>/dev/null || true)
-              {
-                echo "$CURRENT_NOTES"
-                echo ""
-                echo "---"
-                echo "### Patch ${VERSION}"
-                echo ""
-                cat /tmp/release_notes.md
-              } > /tmp/updated_notes.md
+            # Update existing major release with new version info
+            CURRENT_NOTES=$(gh release view "$RELEASE_TAG" --json body -q .body 2>/dev/null || true)
+            {
+              echo "$CURRENT_NOTES"
+              echo ""
+              echo "---"
+              echo "### ${VERSION}"
+              echo ""
+              cat /tmp/release_notes.md
+            } > /tmp/updated_notes.md
 
-              gh release edit "$MINOR_TAG" \
-                --title "${MINOR_BASE} (latest: ${VERSION})" \
-                --notes-file /tmp/updated_notes.md
-              echo "Release updated: ${MINOR_BASE} -> patch ${VERSION}" >> $GITHUB_STEP_SUMMARY
-            else
-              # No existing minor release found — create one for this patch
-              gh release create "$TAG" \
-                --title "${VERSION}" \
-                --notes-file /tmp/release_notes.md
-              echo "Release created: ${VERSION} (no minor release found)" >> $GITHUB_STEP_SUMMARY
-            fi
+            gh release edit "$RELEASE_TAG" \
+              --title "v${MAJOR} (latest: ${VERSION})" \
+              --notes-file /tmp/updated_notes.md
+            echo "Release updated: ${RELEASE_TAG} -> ${VERSION}" >> $GITHUB_STEP_SUMMARY
           fi
 
       # -- Summary --------------------------------------------------------------

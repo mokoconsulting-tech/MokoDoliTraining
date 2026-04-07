@@ -13,10 +13,18 @@
 # BRIEF: Auto-create tracking issue with sub-issues for dev/rc branch workflow
 # NOTE: Synced via bulk-repo-sync to .github/workflows/auto-dev-issue.yml in all governed repos.
 
-name: Auto Dev Branch Issue
+name: Dev/RC Branch Issue
 
 on:
+  # Auto-create on RC branch creation
   create:
+  # Manual trigger for dev branches
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch name (e.g., dev/my-feature or dev/04.06)'
+        required: true
+        type: string
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -30,15 +38,20 @@ jobs:
     name: Create version tracking issue
     runs-on: ubuntu-latest
     if: >-
-      github.event.ref_type == 'branch' &&
-      (startsWith(github.event.ref, 'dev/') || startsWith(github.event.ref, 'rc/'))
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'rc/'))
 
     steps:
       - name: Create tracking issue and sub-issues
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
-          BRANCH="${{ github.event.ref }}"
+          # For manual dispatch, use input; for auto, use event ref
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BRANCH="${{ inputs.branch }}"
+          else
+            BRANCH="${{ github.event.ref }}"
+          fi
           REPO="${{ github.repository }}"
           ACTOR="${{ github.actor }}"
           NOW=$(date -u '+%Y-%m-%d %H:%M UTC')
@@ -143,8 +156,35 @@ jobs:
             done
           fi
 
+          # ── RC: Create or update draft release ────────────────────────────
+          if [[ "$BRANCH" == rc/* ]]; then
+            MAJOR=$(echo "$VERSION" | awk -F. '{print $1}')
+            RELEASE_TAG="v${MAJOR}"
+            DRAFT_EXISTS=$(gh release view "$RELEASE_TAG" --json isDraft -q .isDraft 2>/dev/null || true)
+
+            if [ -z "$DRAFT_EXISTS" ]; then
+              # No release exists — create draft
+              gh release create "$RELEASE_TAG" \
+                --title "v${MAJOR} (RC: ${VERSION})" \
+                --notes "## Release Candidate ${VERSION}\n\nRC branch: \`${BRANCH}\`\nTracking issue: ${PARENT_URL}" \
+                --draft \
+                --target main 2>/dev/null || true
+              echo "Draft release created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+            elif [ "$DRAFT_EXISTS" = "true" ]; then
+              # Draft exists — update title
+              gh release edit "$RELEASE_TAG" \
+                --title "v${MAJOR} (RC: ${VERSION})" --draft 2>/dev/null || true
+              echo "Draft release updated: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+            else
+              # Release exists and is published — set back to draft for RC
+              gh release edit "$RELEASE_TAG" \
+                --title "v${MAJOR} (RC: ${VERSION})" --draft 2>/dev/null || true
+              echo "Release ${RELEASE_TAG} set to draft for RC" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
           # ── Summary ───────────────────────────────────────────────────────
-          echo "## 🎯 Dev Workflow Issues Created" >> $GITHUB_STEP_SUMMARY
+          echo "## Dev Workflow Issues Created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Issue |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
