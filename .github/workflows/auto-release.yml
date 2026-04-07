@@ -7,7 +7,7 @@
 # INGROUP: MokoStandards.Release
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-release.yml.template
-# VERSION: 01.00.01
+# VERSION: 04.05.00
 # BRIEF: Unified build & release pipeline — version branch, platform version, badges, tag, release
 #
 # ╔════════════════════════════════════════════════════════════════════════╗
@@ -64,7 +64,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GH_TOKEN || github.token }}"}}'
         run: |
-          git clone --depth 1 --branch version/04.04 --quiet \
+          git clone --depth 1 --branch version/04.05 --quiet \
             "https://x-access-token:${GH_TOKEN}@github.com/mokoconsulting-tech/MokoStandards.git" \
             /tmp/mokostandards
           cd /tmp/mokostandards
