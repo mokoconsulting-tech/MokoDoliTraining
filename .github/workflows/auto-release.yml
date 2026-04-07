@@ -7,7 +7,7 @@
 # INGROUP: MokoStandards.Release
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-release.yml.template
-# VERSION: 01.00.02
+# VERSION: 04.05.13
 # BRIEF: Unified build & release pipeline — version branch, platform version, badges, tag, release
 #
 # ╔════════════════════════════════════════════════════════════════════════╗
@@ -24,8 +24,9 @@
 # ║    6. Create git tag vXX.YY.ZZ                                        ║
 # ║    7a. Patch: update existing GitHub Release for this minor            ║
 # ║                                                                        ║
-# ║  Minor releases only (patch == 00):                                    ║
-# ║    2. Create/update version/XX.YY branch (patches update in-place)    ║
+# ║  Every version change: archives main → version/XX.YY branch            ║
+# ║  Patch 00 = development (no release). First release = patch 01.        ║
+# ║  First release only (patch == 01):                                     ║
 # ║    7b. Create new GitHub Release                                       ║
 # ║                                                                        ║
 # ╚════════════════════════════════════════════════════════════════════════╝
@@ -88,13 +89,19 @@ jobs:
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "branch=version/${MINOR}" >> "$GITHUB_OUTPUT"
           echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
           if [ "$PATCH" = "00" ]; then
-            echo "is_minor=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Version: $VERSION (minor release — full pipeline)"
-          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "is_minor=false" >> "$GITHUB_OUTPUT"
-            echo "✅ Version: $VERSION (patch — platform version + badges only)"
+            echo "⏭️ Version: $VERSION (patch 00 = development — skipping release)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            if [ "$PATCH" = "01" ]; then
+              echo "is_minor=true" >> "$GITHUB_OUTPUT"
+              echo "✅ Version: $VERSION (first release — full pipeline)"
+            else
+              echo "is_minor=false" >> "$GITHUB_OUTPUT"
+              echo "✅ Version: $VERSION (patch — platform version + badges only)"
+            fi
           fi
 
       - name: Check if already released
@@ -197,21 +204,24 @@ jobs:
             echo "**✅ All sanity checks passed**" >> $GITHUB_STEP_SUMMARY
           fi
 
-      # ── STEP 2: Create or update version/XX.YY branch ──────────────────
-      - name: "Step 2: Version branch"
-        if: >-
-          steps.version.outputs.skip != 'true' &&
-          steps.check.outputs.already_released != 'true'
+      # ── STEP 2: Create or update version/XX.YY archive branch ────────────
+      # Always runs — every version change on main archives to version/XX.YY
+      - name: "Step 2: Version archive branch"
+        if: steps.check.outputs.already_released != 'true'
         run: |
           BRANCH="${{ steps.version.outputs.branch }}"
           IS_MINOR="${{ steps.version.outputs.is_minor }}"
-          if [ "$IS_MINOR" = "true" ]; then
+          PATCH="${{ steps.version.outputs.version }}"
+          PATCH_NUM=$(echo "$PATCH" | awk -F. '{print $3}')
+
+          # Check if branch exists
+          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+            git push origin HEAD:"$BRANCH" --force
+            echo "📝 Updated archive branch: ${BRANCH} (patch ${PATCH_NUM})" >> $GITHUB_STEP_SUMMARY
+          else
             git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
             git push origin "$BRANCH" --force
-            echo "🌿 Created branch: ${BRANCH}" >> $GITHUB_STEP_SUMMARY
-          else
-            git push origin HEAD:"$BRANCH" --force
-            echo "📝 Updated branch: ${BRANCH} (patch)" >> $GITHUB_STEP_SUMMARY
+            echo "🌿 Created archive branch: ${BRANCH}" >> $GITHUB_STEP_SUMMARY
           fi
 
       # ── STEP 3: Set platform version ───────────────────────────────────
