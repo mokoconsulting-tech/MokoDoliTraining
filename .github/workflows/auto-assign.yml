@@ -1,0 +1,72 @@
+# Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# FILE INFORMATION
+# DEFGROUP: GitHub.Workflow
+# INGROUP: MokoStandards.Workflows.Shared
+# REPO: https://github.com/mokoconsulting-tech/MokoStandards
+# PATH: /.github/workflows/auto-assign.yml
+# VERSION: 04.05.11
+# BRIEF: Auto-assign jmiller-moko to unassigned issues and PRs every 15 minutes
+
+name: Auto-Assign Issues & PRs
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  auto-assign:
+    name: Assign unassigned issues and PRs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Assign unassigned issues
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          ASSIGNEE="jmiller-moko"
+
+          echo "## 🏷️ Auto-Assign Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          ASSIGNED_ISSUES=0
+          ASSIGNED_PRS=0
+
+          # Assign unassigned open issues
+          ISSUES=$(gh api "repos/$REPO/issues?state=open&per_page=100&assignee=none" --jq '.[].number' 2>/dev/null || true)
+          for NUM in $ISSUES; do
+            # Skip PRs (the issues endpoint returns PRs too)
+            IS_PR=$(gh api "repos/$REPO/issues/$NUM" --jq '.pull_request // empty' 2>/dev/null || true)
+            if [ -z "$IS_PR" ]; then
+              gh api "repos/$REPO/issues/$NUM/assignees" -X POST -f "assignees[]=$ASSIGNEE" --silent 2>/dev/null && {
+                ASSIGNED_ISSUES=$((ASSIGNED_ISSUES + 1))
+                echo "  Assigned issue #$NUM"
+              } || true
+            fi
+          done
+
+          # Assign unassigned open PRs
+          PRS=$(gh api "repos/$REPO/pulls?state=open&per_page=100" --jq '.[] | select(.assignees | length == 0) | .number' 2>/dev/null || true)
+          for NUM in $PRS; do
+            gh api "repos/$REPO/issues/$NUM/assignees" -X POST -f "assignees[]=$ASSIGNEE" --silent 2>/dev/null && {
+              ASSIGNED_PRS=$((ASSIGNED_PRS + 1))
+              echo "  Assigned PR #$NUM"
+            } || true
+          done
+
+          echo "| Type | Assigned |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Issues | $ASSIGNED_ISSUES |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pull Requests | $ASSIGNED_PRS |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ASSIGNED_ISSUES" -eq 0 ] && [ "$ASSIGNED_PRS" -eq 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All issues and PRs already have assignees" >> $GITHUB_STEP_SUMMARY
+          fi
