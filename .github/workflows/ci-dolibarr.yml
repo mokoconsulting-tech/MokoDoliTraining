@@ -9,7 +9,7 @@
 # INGROUP: MokoStandards.CI
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/dolibarr/ci-dolibarr.yml
-# VERSION: 04.00.25
+# VERSION: 01.00.01
 # BRIEF: CI workflow for Dolibarr modules — lint, validate, test
 # NOTE: Deployed to .github/workflows/ci-dolibarr.yml in governed Dolibarr module repos.
 
