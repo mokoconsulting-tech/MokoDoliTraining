@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs
 INGROUP:  MokoDoliTraining
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /CONTRIBUTING.md
-VERSION:  01.00.02
+VERSION:  01.00.03
 BRIEF:    Contribution guidelines for MokoDoliTraining.
 -->
 

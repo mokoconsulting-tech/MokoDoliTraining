@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-demo.yml.template
-# VERSION: 01.00.02
+# VERSION: 01.00.03
 # BRIEF: SFTP deployment workflow for demo server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-demo.yml in all governed repos.
 #       Port is resolved in order: DEMO_FTP_PORT variable → :port suffix in DEMO_FTP_HOST → 22.
