@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingAudit.class.php
- * VERSION:  01.00.03
+ * VERSION:  01.00.04
  * BRIEF:    Audit log writer and reader for MokoDoliTraining operations.
  */
 

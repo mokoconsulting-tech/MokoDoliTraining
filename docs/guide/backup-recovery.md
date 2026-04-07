@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/backup-recovery.md
-VERSION:  01.00.03
+VERSION:  01.00.04
 BRIEF:    Backup types, file layout, HTTP protection, restore procedures, retention.
 -->
 

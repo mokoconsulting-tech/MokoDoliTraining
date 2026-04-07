@@ -8,7 +8,7 @@
  * INGROUP:  MokoDoliTraining
  * REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
  * PATH:     /src/class/MokoDoliTrainingBackup.class.php
- * VERSION:  01.00.03
+ * VERSION:  01.00.04
  * BRIEF:    Backup, snapshot, restore, integrity, and retention manager.
  *
  * NOTE: Backup files use the .php extension and open with a die() guard so

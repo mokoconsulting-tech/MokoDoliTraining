@@ -19,12 +19,12 @@
  DEFGROUP: mokoconsulting-tech.MokoDoliTraining
  INGROUP: MokoStandards.Governance
  REPO: https://github.com/mokoconsulting-tech/MokoDoliTraining
- VERSION: 01.00.03
+ VERSION: 01.00.04
  PATH: /GOVERNANCE.md
  BRIEF: Project governance rules, roles, and decision process for MokoDoliTraining
 -->
 
-[![MokoStandards](https://img.shields.io/badge/MokoStandards-01.00.03-blue)](https://github.com/mokoconsulting-tech/MokoStandards)
+[![MokoStandards](https://img.shields.io/badge/MokoStandards-01.00.04-blue)](https://github.com/mokoconsulting-tech/MokoStandards)
 
 # Project Governance
 

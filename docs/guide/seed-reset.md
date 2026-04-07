@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs.Guide
 INGROUP:  MokoDoliTraining.Docs
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /docs/guide/seed-reset.md
-VERSION:  01.00.03
+VERSION:  01.00.04
 BRIEF:    Guide for seeding and resetting the MokoDoliTraining dataset.
 -->
 

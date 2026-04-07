@@ -7,7 +7,7 @@ DEFGROUP: MokoDoliTraining.Docs
 INGROUP:  MokoDoliTraining
 REPO:     https://github.com/mokoconsulting-tech/MokoDoliTraining
 PATH:     /CHANGELOG.md
-VERSION:  01.00.03
+VERSION:  01.00.04
 BRIEF:    Version history for MokoDoliTraining.
 -->
 
