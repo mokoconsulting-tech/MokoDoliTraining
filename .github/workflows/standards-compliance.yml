@@ -509,7 +509,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GH_TOKEN || github.token }}"}}'
         run: |
-          git clone --depth 1 --branch version/04.05 --quiet \
+          git clone --depth 1 --branch version/04 --quiet \
             "https://x-access-token:${GH_TOKEN}@github.com/mokoconsulting-tech/MokoStandards.git" \
             /tmp/mokostandards 2>/dev/null || true
           if [ -d "/tmp/mokostandards" ] && [ -f "/tmp/mokostandards/composer.json" ]; then
@@ -1978,7 +1978,7 @@ jobs:
           else
             echo "No composer.json — pulling MokoStandards tools"
             if [ ! -d "/tmp/mokostandards" ]; then
-              git clone --depth 1 --branch version/04.05 --quiet \
+              git clone --depth 1 --branch version/04 --quiet \
                 "https://x-access-token:${GH_TOKEN}@github.com/mokoconsulting-tech/MokoStandards.git" \
                 /tmp/mokostandards 2>/dev/null || true
               if [ -f "/tmp/mokostandards/composer.json" ]; then
@@ -2050,7 +2050,7 @@ jobs:
           else
             echo "No composer.json — pulling MokoStandards tools"
             if [ ! -d "/tmp/mokostandards" ]; then
-              git clone --depth 1 --branch version/04.05 --quiet \
+              git clone --depth 1 --branch version/04 --quiet \
                 "https://x-access-token:${GH_TOKEN}@github.com/mokoconsulting-tech/MokoStandards.git" \
                 /tmp/mokostandards 2>/dev/null || true
               if [ -f "/tmp/mokostandards/composer.json" ]; then
