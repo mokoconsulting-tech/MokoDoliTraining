@@ -67,7 +67,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GH_TOKEN || github.token }}"}}'
         run: |
-          git clone --depth 1 --branch version/04.05 --quiet \
+          git clone --depth 1 --branch version/04 --quiet \
             "https://x-access-token:${GH_TOKEN}@github.com/mokoconsulting-tech/MokoStandards.git" \
             /tmp/mokostandards
           cd /tmp/mokostandards
@@ -91,7 +91,7 @@ jobs:
           MINOR_NUM=$(echo "$VERSION" | awk -F. '{print $2}')
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "branch=version/${MINOR}" >> "$GITHUB_OUTPUT"
+          echo "branch=version/${MAJOR}" >> "$GITHUB_OUTPUT"
           echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
           echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
           echo "release_tag=v${MAJOR}" >> "$GITHUB_OUTPUT"
