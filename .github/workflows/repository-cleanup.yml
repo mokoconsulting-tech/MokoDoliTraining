@@ -9,7 +9,7 @@
 # INGROUP: MokoStandards.Maintenance
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/repository-cleanup.yml.template
-# VERSION: 04.05.13
+# VERSION: 04.06.00
 # BRIEF: Recurring repository maintenance — labels, branches, workflows, logs, doc indexes
 # NOTE: Synced via bulk-repo-sync to .github/workflows/repository-cleanup.yml in all governed repos.
 #       Runs on the 1st and 15th of each month at 6:00 AM UTC, and on manual dispatch.
@@ -154,6 +154,10 @@ jobs:
             ".github/workflows/auto-version-branch.yml"
             ".github/workflows/publish-to-mokodolibarr.yml"
             ".github/workflows/ci.yml"
+            ".github/workflows/deploy-rs.yml"
+            "sftp-config.json"
+            "sftp-config.json.template"
+            "scripts/sftp-config"
           )
 
           DELETED=0

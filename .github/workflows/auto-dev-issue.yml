@@ -9,7 +9,7 @@
 # INGROUP: MokoStandards.Automation
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/auto-dev-issue.yml.template
-# VERSION: 04.05.13
+# VERSION: 04.06.00
 # BRIEF: Auto-create tracking issue with sub-issues for dev/rc branch workflow
 # NOTE: Synced via bulk-repo-sync to .github/workflows/auto-dev-issue.yml in all governed repos.
 
@@ -39,7 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       (github.event_name == 'workflow_dispatch') ||
-      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'rc/'))
+      (github.event.ref_type == 'branch' &&
+        (startsWith(github.event.ref, 'rc/') ||
+         startsWith(github.event.ref, 'alpha/') ||
+         startsWith(github.event.ref, 'beta/')))
 
     steps:
       - name: Create tracking issue and sub-issues
@@ -62,6 +65,16 @@ jobs:
             BRANCH_TYPE="Release Candidate"
             LABEL_TYPE="type: release"
             TITLE_PREFIX="rc"
+          elif [[ "$BRANCH" == beta/* ]]; then
+            VERSION="${BRANCH#beta/}"
+            BRANCH_TYPE="Beta"
+            LABEL_TYPE="type: release"
+            TITLE_PREFIX="beta"
+          elif [[ "$BRANCH" == alpha/* ]]; then
+            VERSION="${BRANCH#alpha/}"
+            BRANCH_TYPE="Alpha"
+            LABEL_TYPE="type: release"
+            TITLE_PREFIX="alpha"
           else
             VERSION="${BRANCH#dev/}"
             BRANCH_TYPE="Development"
@@ -80,14 +93,20 @@ jobs:
             exit 0
           fi
 
-          # ── Define sub-issues for the dev workflow ────────────────────────
+          # ── Define sub-issues for the workflow ─────────────────────────
           if [[ "$BRANCH" == rc/* ]]; then
             SUB_ISSUES=(
               "RC Testing|Verify all features work on rc branch|type: test,release-candidate"
-              "Regression Testing|Run full regression suite before merge to main|type: test,release-candidate"
+              "Regression Testing|Run full regression suite before merge|type: test,release-candidate"
               "Version Bump|Bump version in README.md and all headers|type: version,release-candidate"
               "Changelog Update|Update CHANGELOG.md with release notes|documentation,release-candidate"
-              "Merge to Main|Create PR from rc branch to main|type: release,needs-review"
+              "Merge to Version Branch|Create PR to version/XX|type: release,needs-review"
+            )
+          elif [[ "$BRANCH" == alpha/* ]] || [[ "$BRANCH" == beta/* ]]; then
+            SUB_ISSUES=(
+              "Testing|Verify features on ${BRANCH_TYPE} branch|type: test,status: in-progress"
+              "Bug Fixes|Fix issues found during ${BRANCH_TYPE} testing|type: bug,status: pending"
+              "Promote to Next Stage|Create PR to promote to next release stage|type: release,needs-review"
             )
           else
             SUB_ISSUES=(
@@ -156,22 +175,26 @@ jobs:
             done
           fi
 
-          # ── RC: Create or update release-candidate release ──────────────
-          if [[ "$BRANCH" == rc/* ]]; then
-            RELEASE_TAG="release-candidate"
-            EXISTING=$(gh release view "$RELEASE_TAG" --json tagName -q .tagName 2>/dev/null || true)
+          # ── Create or update prerelease for alpha/beta/rc ────────────────
+          if [[ "$BRANCH" == rc/* ]] || [[ "$BRANCH" == alpha/* ]] || [[ "$BRANCH" == beta/* ]]; then
+            case "$BRANCH_TYPE" in
+              Alpha)               RELEASE_TAG="alpha" ;;
+              Beta)                RELEASE_TAG="beta" ;;
+              "Release Candidate") RELEASE_TAG="release-candidate" ;;
+            esac
 
+            EXISTING=$(gh release view "$RELEASE_TAG" --json tagName -q .tagName 2>/dev/null || true)
             if [ -z "$EXISTING" ]; then
               gh release create "$RELEASE_TAG" \
-                --title "release-candidate (${VERSION})" \
-                --notes "## Release Candidate ${VERSION}\n\nRC branch: \`${BRANCH}\`\nTracking issue: ${PARENT_URL}" \
+                --title "${RELEASE_TAG} (${VERSION})" \
+                --notes "## ${BRANCH_TYPE} ${VERSION}\n\nBranch: \`${BRANCH}\`\nTracking issue: ${PARENT_URL}" \
                 --prerelease \
                 --target main 2>/dev/null || true
-              echo "RC release created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+              echo "${BRANCH_TYPE} release created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
             else
               gh release edit "$RELEASE_TAG" \
-                --title "release-candidate (${VERSION})" --prerelease 2>/dev/null || true
-              echo "RC release updated: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+                --title "${RELEASE_TAG} (${VERSION})" --prerelease 2>/dev/null || true
+              echo "${BRANCH_TYPE} release updated: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
             fi
           fi
 
