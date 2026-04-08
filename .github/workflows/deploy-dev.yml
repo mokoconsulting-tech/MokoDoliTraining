@@ -654,8 +654,8 @@ jobs:
                 printf '%s\n' '    <maintainerurl>https://mokoconsulting.tech</maintainerurl>'
                 printf '%s\n' '  </update>'
                 printf '%s\n' '</updates>'
-              } > update.xml
-              sed -i '/^[[:space:]]*$/d' update.xml
+              } > updates.xml
+              sed -i '/^[[:space:]]*$/d' updates.xml
             fi
           fi
 

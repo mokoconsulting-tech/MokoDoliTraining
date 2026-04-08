@@ -625,7 +625,7 @@ jobs:
                 printf '%s\n' '    <maintainerurl>https://mokoconsulting.tech</maintainerurl>'
                 printf '%s\n' '  </update>'
                 printf '%s\n' '</updates>'
-              } > update.xml
+              } > updates.xml
             fi
           fi
 
