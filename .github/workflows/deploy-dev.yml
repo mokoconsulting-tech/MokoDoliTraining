@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-dev.yml.template
-# VERSION: 04.05.13
+# VERSION: 04.06.00
 # BRIEF: SFTP deployment workflow for development server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-dev.yml in all governed repos.
 #       Port is resolved in order: DEV_FTP_PORT variable → :port suffix in DEV_FTP_HOST → 22.
@@ -37,7 +37,7 @@ name: Deploy to Dev Server (SFTP)
 # Optional org-level variable:   DEV_FTP_PORT (auto-detected from host or defaults to 22)
 # Optional org/repo variable:    DEV_FTP_SUFFIX — when set, appended to DEV_FTP_PATH to form the
 #                                 full remote destination: DEV_FTP_PATH/DEV_FTP_SUFFIX
-# Ignore rules:                  Place a .ftpignore file in the repository root. Each non-empty,
+# Ignore rules:                  Place a .ftpignore file in the src/ directory. Each non-empty,
 #                                 non-comment line is a glob pattern tested against the relative path
 #                                 of each file (e.g. "subdir/file.txt"). The .gitignore is NOT used.
 # Required org-level secret:     DEV_FTP_KEY (preferred) or DEV_FTP_PASSWORD
@@ -233,12 +233,12 @@ jobs:
           # ── Read .ftpignore (ftpignore-style globs) ─────────────────────────
           IGNORE_PATTERNS=()
           IGNORE_SOURCES=()
-          if [ -f ".ftpignore" ]; then
+          if [ -f "${SOURCE_DIR}/.ftpignore" ]; then
             while IFS= read -r line; do
               [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
               regex=$(ftpignore_to_regex "$line")
               [ -n "$regex" ] && IGNORE_PATTERNS+=("$regex") && IGNORE_SOURCES+=("$line")
-            done < ".ftpignore"
+            done < "${SOURCE_DIR}/.ftpignore"
           fi
 
           # ── Walk src/ and classify every file ────────────────────────────────
@@ -576,8 +576,8 @@ jobs:
           fi
 
           # Dev deploys skip minified files — use unminified sources for debugging
-          echo "*.min.js" >> .ftpignore
-          echo "*.min.css" >> .ftpignore
+          echo "*.min.js" >> "${SOURCE_DIR}/.ftpignore"
+          echo "*.min.css" >> "${SOURCE_DIR}/.ftpignore"
 
           # ── Run deploy-sftp.php from MokoStandards ────────────────────────────
           DEPLOY_ARGS=(--path . --src-dir "$SOURCE_DIR" --config /tmp/sftp-config.json)

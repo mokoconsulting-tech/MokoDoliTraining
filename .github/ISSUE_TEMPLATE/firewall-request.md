@@ -3,9 +3,22 @@ name: Firewall Request
 about: Request firewall rule changes or access to external resources
 title: '[FIREWALL] [Resource Name] - [Brief Description]'
 labels: ['firewall-request', 'infrastructure', 'security']
-assignees: ['jmiller-moko']
+assignees: []
 ---
 
+<!--
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2024-2026 Moko Consulting Tech
+
+File: .github/ISSUE_TEMPLATE/firewall-request.md
+Description: Issue template for firewall rule change and access requests
+Project: .github-private
+Author: Moko Consulting Tech
+Version: 03.02.00
+
+Revision History:
+- 2026-03-11: Added SPDX header and version to match MokoStandards 03.02.00
+-->
 
 ## Firewall Request
 
