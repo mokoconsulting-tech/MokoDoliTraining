@@ -22,7 +22,7 @@
 # INGROUP: MokoStandards.Deploy
 # REPO: https://github.com/mokoconsulting-tech/MokoStandards
 # PATH: /templates/workflows/shared/deploy-dev.yml.template
-# VERSION: 04.05.00
+# VERSION: 04.05.13
 # BRIEF: SFTP deployment workflow for development server — synced to all governed repos
 # NOTE: Synced via bulk-repo-sync to .github/workflows/deploy-dev.yml in all governed repos.
 #       Port is resolved in order: DEV_FTP_PORT variable → :port suffix in DEV_FTP_HOST → 22.
@@ -654,8 +654,8 @@ jobs:
                 printf '%s\n' '    <maintainerurl>https://mokoconsulting.tech</maintainerurl>'
                 printf '%s\n' '  </update>'
                 printf '%s\n' '</updates>'
-              } > update.xml
-              sed -i '/^[[:space:]]*$/d' update.xml
+              } > updates.xml
+              sed -i '/^[[:space:]]*$/d' updates.xml
             fi
           fi
 

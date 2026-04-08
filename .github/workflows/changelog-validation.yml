@@ -1,0 +1,101 @@
+# Copyright (C) 2026 Moko Consulting <hello@mokoconsulting.tech>
+#
+# This file is part of a Moko Consulting project.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# FILE INFORMATION
+# DEFGROUP: GitHub.Workflow.Template
+# INGROUP: MokoStandards.CI
+# REPO: https://github.com/mokoconsulting-tech/MokoStandards
+# PATH: /templates/workflows/shared/changelog-validation.yml.template
+# VERSION: 04.05.13
+# BRIEF: Validates CHANGELOG.md format and version consistency
+# NOTE: Deployed to .github/workflows/changelog-validation.yml in governed repos.
+
+name: Changelog Validation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate-changelog:
+    name: Validate CHANGELOG.md
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check CHANGELOG.md exists
+        run: |
+          echo "### Changelog Validation" >> $GITHUB_STEP_SUMMARY
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "CHANGELOG.md not found in repository root." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "CHANGELOG.md exists." >> $GITHUB_STEP_SUMMARY
+
+      - name: Check VERSION header matches README.md
+        run: |
+          # Extract version from README.md FILE INFORMATION block
+          README_VERSION=$(grep -oP '^\s*VERSION:\s*\K[0-9]{2}\.[0-9]{2}\.[0-9]{2}' README.md | head -1)
+          if [ -z "$README_VERSION" ]; then
+            echo "No VERSION found in README.md FILE INFORMATION block." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Check that CHANGELOG.md has a matching version header
+          CHANGELOG_VERSION=$(grep -oP '^\#\#\s*\[\K[0-9]{2}\.[0-9]{2}\.[0-9]{2}' CHANGELOG.md | head -1)
+          if [ -z "$CHANGELOG_VERSION" ]; then
+            echo "No version header found in CHANGELOG.md (expected \`## [XX.YY.ZZ] - YYYY-MM-DD\`)." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          if [ "$CHANGELOG_VERSION" != "$README_VERSION" ]; then
+            echo "CHANGELOG latest version \`${CHANGELOG_VERSION}\` does not match README VERSION \`${README_VERSION}\`." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "CHANGELOG version \`${CHANGELOG_VERSION}\` matches README VERSION." >> $GITHUB_STEP_SUMMARY
+
+      - name: Validate conventional changelog format
+        run: |
+          ERRORS=0
+
+          # Check that version entries follow ## [XX.YY.ZZ] - YYYY-MM-DD format
+          while IFS= read -r LINE; do
+            if ! echo "$LINE" | grep -qP '^\#\#\s*\[[0-9]{2}\.[0-9]{2}\.[0-9]{2}\]\s*-\s*[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
+              echo "Malformed version header: \`${LINE}\`" >> $GITHUB_STEP_SUMMARY
+              echo "  Expected format: \`## [XX.YY.ZZ] - YYYY-MM-DD\`" >> $GITHUB_STEP_SUMMARY
+              ERRORS=$((ERRORS + 1))
+            fi
+          done < <(grep -P '^\#\#\s*\[' CHANGELOG.md)
+
+          ENTRY_COUNT=$(grep -cP '^\#\#\s*\[' CHANGELOG.md || echo "0")
+          if [ "$ENTRY_COUNT" -eq 0 ]; then
+            echo "No version entries found in CHANGELOG.md." >> $GITHUB_STEP_SUMMARY
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "Found ${ENTRY_COUNT} version entr(ies) in CHANGELOG.md." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${ERRORS}" -gt 0 ]; then
+            echo "**${ERRORS} format issue(s) found.**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "**Changelog format validation passed.**" >> $GITHUB_STEP_SUMMARY
+          fi
