@@ -8,8 +8,26 @@
 # Combined with branch protection (require PR reviews), this prevents
 # unauthorized modifications to workflows, configs, and governance files.
 
-# ── Workflows (synced from MokoStandards — must not be manually edited) ──
-/.github/workflows/                     @jmiller-moko
+# ── Synced workflows (managed by MokoStandards — do not edit manually) ────
+/.github/workflows/deploy-dev.yml                @jmiller-moko
+/.github/workflows/deploy-demo.yml               @jmiller-moko
+/.github/workflows/deploy-manual.yml             @jmiller-moko
+/.github/workflows/auto-release.yml              @jmiller-moko
+/.github/workflows/auto-dev-issue.yml            @jmiller-moko
+/.github/workflows/auto-assign.yml               @jmiller-moko
+/.github/workflows/sync-version-on-merge.yml     @jmiller-moko
+/.github/workflows/enterprise-firewall-setup.yml @jmiller-moko
+/.github/workflows/repository-cleanup.yml        @jmiller-moko
+/.github/workflows/standards-compliance.yml      @jmiller-moko
+/.github/workflows/codeql-analysis.yml           @jmiller-moko
+/.github/workflows/repo_health.yml               @jmiller-moko
+/.github/workflows/ci-joomla.yml                 @jmiller-moko
+/.github/workflows/update-server.yml             @jmiller-moko
+/.github/workflows/deploy-manual.yml             @jmiller-moko
+/.github/workflows/ci-dolibarr.yml               @jmiller-moko
+/.github/workflows/publish-to-mokodolimods.yml   @jmiller-moko
+/.github/workflows/changelog-validation.yml      @jmiller-moko
+# Custom workflows in .github/workflows/ not listed above are repo-owned.
 
 # ── GitHub configuration ─────────────────────────────────────────────────
 /.github/ISSUE_TEMPLATE/                @jmiller-moko
@@ -23,7 +41,7 @@
 /composer.json                          @jmiller-moko
 /phpstan.neon                           @jmiller-moko
 /Makefile                               @jmiller-moko
-/.ftp_ignore                            @jmiller-moko
+/.ftpignore                            @jmiller-moko
 /.gitignore                             @jmiller-moko
 /.gitattributes                         @jmiller-moko
 /.editorconfig                          @jmiller-moko
