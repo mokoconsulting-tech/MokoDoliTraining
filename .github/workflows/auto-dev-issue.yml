@@ -156,30 +156,22 @@ jobs:
             done
           fi
 
-          # ── RC: Create or update draft release ────────────────────────────
+          # ── RC: Create or update release-candidate release ──────────────
           if [[ "$BRANCH" == rc/* ]]; then
-            MAJOR=$(echo "$VERSION" | awk -F. '{print $1}')
-            RELEASE_TAG="v${MAJOR}"
-            DRAFT_EXISTS=$(gh release view "$RELEASE_TAG" --json isDraft -q .isDraft 2>/dev/null || true)
+            RELEASE_TAG="release-candidate"
+            EXISTING=$(gh release view "$RELEASE_TAG" --json tagName -q .tagName 2>/dev/null || true)
 
-            if [ -z "$DRAFT_EXISTS" ]; then
-              # No release exists — create draft
+            if [ -z "$EXISTING" ]; then
               gh release create "$RELEASE_TAG" \
-                --title "v${MAJOR} (RC: ${VERSION})" \
+                --title "release-candidate (${VERSION})" \
                 --notes "## Release Candidate ${VERSION}\n\nRC branch: \`${BRANCH}\`\nTracking issue: ${PARENT_URL}" \
-                --draft \
+                --prerelease \
                 --target main 2>/dev/null || true
-              echo "Draft release created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
-            elif [ "$DRAFT_EXISTS" = "true" ]; then
-              # Draft exists — update title
-              gh release edit "$RELEASE_TAG" \
-                --title "v${MAJOR} (RC: ${VERSION})" --draft 2>/dev/null || true
-              echo "Draft release updated: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
+              echo "RC release created: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
             else
-              # Release exists and is published — set back to draft for RC
               gh release edit "$RELEASE_TAG" \
-                --title "v${MAJOR} (RC: ${VERSION})" --draft 2>/dev/null || true
-              echo "Release ${RELEASE_TAG} set to draft for RC" >> $GITHUB_STEP_SUMMARY
+                --title "release-candidate (${VERSION})" --prerelease 2>/dev/null || true
+              echo "RC release updated: ${RELEASE_TAG}" >> $GITHUB_STEP_SUMMARY
             fi
           fi
 
